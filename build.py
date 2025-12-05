@@ -75,6 +75,7 @@ def build_exe():
         '--hidden-import=PyQt6.QtGui',
         '--hidden-import=yaml',
         '--hidden-import=pyperclip',
+        '--hidden-import=PIL.Image',
         '--hidden-import=openai',                     # AI 服务
         '--hidden-import=openai.resources',
         '--hidden-import=openai.resources.chat',
@@ -113,6 +114,7 @@ def build_exe():
         '--collect-all=h11',
         '--collect-all=typing_extensions',
         '--collect-all=distro',
+        '--collect-all=PIL',
         # 排除 http2 相关（避免 cffi/pycparser 问题）
         '--exclude-module=h2',
         '--exclude-module=hpack',
@@ -132,7 +134,6 @@ def build_exe():
         '--exclude-module=scipy',
         '--exclude-module=torch',
         '--exclude-module=tensorflow',
-        '--exclude-module=PIL',
         '--exclude-module=cv2',
         '--exclude-module=sklearn',
         '--exclude-module=IPython',
