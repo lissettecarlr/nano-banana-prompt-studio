@@ -528,72 +528,93 @@ class PromptGeneratorApp(QMainWindow):
 
     def _fill_form_from_data(self, data: dict):
         """从数据填充表单"""
-        # 字段映射: 表单字段名 -> JSON路径
+        _MISSING = object()
+
+        def _get(d, *keys):
+            """按路径取值，缺失则返回 _MISSING 用于“不覆盖”"""
+            cur = d
+            for k in keys:
+                if not isinstance(cur, dict) or k not in cur:
+                    return _MISSING
+                cur = cur[k]
+            return cur
+
+        def _get_list_as_str(d, *keys):
+            val = _get(d, *keys)
+            if val is _MISSING:
+                return _MISSING
+            return self._list_to_str(val)
+
+        # 字段映射: 仅当预设里存在该键时才覆盖
         field_mapping = {
-            "风格模式": lambda d: d.get("风格模式", ""),
-            "画面气质": lambda d: d.get("画面气质", ""),
-            "机位角度": lambda d: d.get("相机", {}).get("机位角度", ""),
-            "构图": lambda d: d.get("相机", {}).get("构图", ""),
-            "镜头特性": lambda d: d.get("相机", {}).get("镜头特性", ""),
-            "传感器画质": lambda d: d.get("相机", {}).get("传感器画质", ""),
-            "地点设定": lambda d: d.get("场景", {}).get("环境", {}).get("地点设定", ""),
-            "光线": lambda d: d.get("场景", {}).get("环境", {}).get("光线", ""),
-            "天气氛围": lambda d: d.get("场景", {}).get("环境", {}).get("天气氛围", ""),
-            "整体描述": lambda d: d.get("场景", {}).get("主体", {}).get("整体描述", ""),
-            "身材": lambda d: d.get("场景", {}).get("主体", {}).get("外形特征", {}).get("身材", ""),
-            "面部": lambda d: d.get("场景", {}).get("主体", {}).get("外形特征", {}).get("面部", ""),
-            "头发": lambda d: d.get("场景", {}).get("主体", {}).get("外形特征", {}).get("头发", ""),
-            "眼睛": lambda d: d.get("场景", {}).get("主体", {}).get("外形特征", {}).get("眼睛", ""),
-            "情绪": lambda d: d.get("场景", {}).get("主体", {}).get("表情与动作", {}).get("情绪", ""),
-            "动作": lambda d: d.get("场景", {}).get("主体", {}).get("表情与动作", {}).get("动作", ""),
-            "穿着": lambda d: d.get("场景", {}).get("主体", {}).get("服装", {}).get("穿着", ""),
-            "服装细节": lambda d: d.get("场景", {}).get("主体", {}).get("服装", {}).get("细节", ""),
-            "配饰": lambda d: d.get("场景", {}).get("主体", {}).get("配饰", ""),
-            "背景描述": lambda d: d.get("场景", {}).get("背景", {}).get("描述", ""),
-            "景深": lambda d: d.get("场景", {}).get("背景", {}).get("景深", ""),
-            "呈现意图": lambda d: d.get("审美控制", {}).get("呈现意图", ""),
-            "材质真实度": lambda d: self._list_to_str(d.get("审美控制", {}).get("材质真实度", [])),
-            "整体色调": lambda d: d.get("审美控制", {}).get("色彩风格", {}).get("整体色调", ""),
-            "对比度": lambda d: d.get("审美控制", {}).get("色彩风格", {}).get("对比度", ""),
-            "特殊效果": lambda d: d.get("审美控制", {}).get("色彩风格", {}).get("特殊效果", ""),
+            "风格模式": lambda d: _get(d, "风格模式"),
+            "画面气质": lambda d: _get(d, "画面气质"),
+            "机位角度": lambda d: _get(d, "相机", "机位角度"),
+            "构图": lambda d: _get(d, "相机", "构图"),
+            "镜头特性": lambda d: _get(d, "相机", "镜头特性"),
+            "传感器画质": lambda d: _get(d, "相机", "传感器画质"),
+            "地点设定": lambda d: _get(d, "场景", "环境", "地点设定"),
+            "光线": lambda d: _get(d, "场景", "环境", "光线"),
+            "天气氛围": lambda d: _get(d, "场景", "环境", "天气氛围"),
+            "整体描述": lambda d: _get(d, "场景", "主体", "整体描述"),
+            "身材": lambda d: _get(d, "场景", "主体", "外形特征", "身材"),
+            "面部": lambda d: _get(d, "场景", "主体", "外形特征", "面部"),
+            "头发": lambda d: _get(d, "场景", "主体", "外形特征", "头发"),
+            "眼睛": lambda d: _get(d, "场景", "主体", "外形特征", "眼睛"),
+            "情绪": lambda d: _get(d, "场景", "主体", "表情与动作", "情绪"),
+            "动作": lambda d: _get(d, "场景", "主体", "表情与动作", "动作"),
+            "穿着": lambda d: _get(d, "场景", "主体", "服装", "穿着"),
+            "服装细节": lambda d: _get(d, "场景", "主体", "服装", "细节"),
+            "配饰": lambda d: _get(d, "场景", "主体", "配饰"),
+            "背景描述": lambda d: _get(d, "场景", "背景", "描述"),
+            "景深": lambda d: _get(d, "场景", "背景", "景深"),
+            "呈现意图": lambda d: _get(d, "审美控制", "呈现意图"),
+            "材质真实度": lambda d: _get_list_as_str(d, "审美控制", "材质真实度"),
+            "整体色调": lambda d: _get(d, "审美控制", "色彩风格", "整体色调"),
+            "对比度": lambda d: _get(d, "审美控制", "色彩风格", "对比度"),
+            "特殊效果": lambda d: _get(d, "审美控制", "色彩风格", "特殊效果"),
         }
 
         for field_name, getter in field_mapping.items():
             if field_name in self.field_widgets:
                 value = getter(data)
-                self.field_widgets[field_name].set_value(value if value else "")
+                if value is not _MISSING:
+                    self.field_widgets[field_name].set_value("" if value is None else value)
 
-        # 多选字段需要传入列表
+        # 多选字段需要传入列表；缺失键不覆盖
         multi_select_fields = {
-            "禁止元素": lambda d: d.get("反向提示词", {}).get("禁止元素", []),
-            "禁止风格": lambda d: d.get("反向提示词", {}).get("禁止风格", []),
+            "禁止元素": lambda d: _get(d, "反向提示词", "禁止元素"),
+            "禁止风格": lambda d: _get(d, "反向提示词", "禁止风格"),
         }
         for field_name, getter in multi_select_fields.items():
             if field_name in self.field_widgets:
                 value = getter(data)
-                self.field_widgets[field_name].set_value(value if value else [])
+                if value is not _MISSING:
+                    self.field_widgets[field_name].set_value(value if value else [])
 
-        # 处理画幅设置开关状态
-        aspect_data = data.get("画幅设置", {})
-        has_aspect = bool(
-            aspect_data.get("比例") or aspect_data.get("推荐分辨率") or aspect_data.get("用途")
-        )
-        self.aspect_enabled.setChecked(has_aspect)
-        self.aspect_group.setVisible(has_aspect)
-        if has_aspect:
-            self.aspect_selector.set_values(
-                ratio=aspect_data.get("比例", ""),
-                resolution=aspect_data.get("推荐分辨率", ""),
-                usage=aspect_data.get("用途", ""),
+        # 处理画幅设置开关状态；仅当预设提供该块时覆盖
+        aspect_data = data.get("画幅设置", _MISSING)
+        if aspect_data is not _MISSING and isinstance(aspect_data, dict):
+            has_aspect = bool(
+                aspect_data.get("比例") or aspect_data.get("推荐分辨率") or aspect_data.get("用途")
             )
+            self.aspect_enabled.setChecked(has_aspect)
+            self.aspect_group.setVisible(has_aspect)
+            if has_aspect:
+                self.aspect_selector.set_values(
+                    ratio=aspect_data.get("比例", ""),
+                    resolution=aspect_data.get("推荐分辨率", ""),
+                    usage=aspect_data.get("用途", ""),
+                )
 
-        # 处理反向提示词开关状态
-        negative_data = data.get("反向提示词", {})
-        has_negative = bool(
-            negative_data.get("禁止元素") or negative_data.get("禁止风格")
-        )
-        self.negative_prompt_enabled.setChecked(has_negative)
-        self.negative_group.setVisible(has_negative)
+        # 处理反向提示词开关状态；仅当预设提供该块时覆盖
+        negative_data = data.get("反向提示词", _MISSING)
+        if negative_data is not _MISSING and isinstance(negative_data, dict):
+            has_negative = bool(
+                negative_data.get("禁止元素") or negative_data.get("禁止风格")
+            )
+            self.negative_prompt_enabled.setChecked(has_negative)
+            self.negative_group.setVisible(has_negative)
 
         self._generate_json()
 

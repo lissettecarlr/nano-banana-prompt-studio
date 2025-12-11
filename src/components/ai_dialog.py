@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
-    QGridLayout,
     QLabel,
     QLineEdit,
     QTextEdit,
@@ -955,76 +954,7 @@ class AIModifyDialog(QDialog):
             }
         """)
         input_frame_layout.addWidget(self.prompt_input)
-        
-        # 添加快捷操作按钮区域
-        quick_ops_label = QLabel("快速指定：")
-        quick_ops_label.setStyleSheet("font-size: 12px; color: #595959; font-weight: 500;")
-        input_frame_layout.addWidget(quick_ops_label)
-        
-        # 按钮容器 - 使用网格布局
-        quick_ops_container = QWidget()
-        quick_ops_grid = QGridLayout(quick_ops_container)
-        quick_ops_grid.setContentsMargins(0, 0, 0, 0)
-        quick_ops_grid.setSpacing(8)
-        
-        self.quick_ops_buttons = {}  # 存储按钮引用
-        
-        # 创建快捷操作按钮 - 每行3个
-        quick_op_names = ["人物", "服饰", "动作", "地点", "镜头角度"]
-        for idx, op_name in enumerate(quick_op_names):
-            btn = QPushButton(op_name)
-            btn.setCheckable(True)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #f0f0f0;
-                    border: 1px solid #d9d9d9;
-                    padding: 6px 12px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                }
-                QPushButton:checked {
-                    background-color: #1890ff;
-                    color: white;
-                    border: 1px solid #1890ff;
-                }
-                QPushButton:hover {
-                    border-color: #40a9ff;
-                    background-color: #f0f5ff;
-                }
-                QPushButton:checked:hover {
-                    background-color: #40a9ff;
-                }
-            """)
-            btn.clicked.connect(lambda checked, name=op_name: self._on_quick_op_clicked(name))
-            
-            # 计算行列位置（每行3个）
-            row = idx // 3
-            col = idx % 3
-            quick_ops_grid.addWidget(btn, row, col)
-            self.quick_ops_buttons[op_name] = btn
-        
-        # 确认按钮放在第二行，占据剩余空间并右对齐
-        self.confirm_quick_ops_btn = QPushButton("确认选中")
-        self.confirm_quick_ops_btn.clicked.connect(self._confirm_quick_ops)
-        self.confirm_quick_ops_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #52c41a;
-                color: white;
-                border: none;
-                padding: 6px 16px;
-                border-radius: 4px;
-                font-size: 12px;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #73d13d;
-            }
-        """)
-        # 放在第二行，从第2列开始，占据1列，右对齐
-        quick_ops_grid.addWidget(self.confirm_quick_ops_btn, 1, 2, 1, 1, Qt.AlignmentFlag.AlignRight)
-        
-        input_frame_layout.addWidget(quick_ops_container)
-        
+
         left_layout.addWidget(input_frame)
         
         # 图片上传区域
@@ -1531,26 +1461,3 @@ class AIModifyDialog(QDialog):
         if self._is_generating:
             self.ai_service.cancel()
         self.reject()
-
-    def _on_quick_op_clicked(self, op_name: str):
-        """处理快捷操作按钮点击"""
-        # 按钮本身会自动切换选中状态，这里只需要处理逻辑
-        pass
-
-    def _confirm_quick_ops(self):
-        """确认选中的快捷操作并生成描述文本"""
-        selected_ops = [name for name, btn in self.quick_ops_buttons.items() if btn.isChecked()]
-        
-        if not selected_ops:
-            QMessageBox.warning(self, "提示", "请至少选择一个要修改的项目")
-            return
-            
-        # 生成描述文本
-        if len(selected_ops) == 1:
-            desc_text = f"修改{selected_ops[0]}，其它参数保持不变"
-        else:
-            ops_list = "、".join(selected_ops)
-            desc_text = f"修改{ops_list}参数，其它参数禁止修改"
-            
-        # 设置到输入框
-        self.prompt_input.setPlainText(desc_text)
