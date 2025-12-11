@@ -297,7 +297,7 @@ class AIGenerateDialog(QDialog):
         self._update_config_status()
         
         # 配置按钮
-        self.config_btn = QPushButton("⚙ 配置")
+        self.config_btn = QPushButton("配置")
         self.config_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 16px;
@@ -340,7 +340,7 @@ class AIGenerateDialog(QDialog):
         input_frame_layout.setContentsMargins(20, 20, 20, 20)
         input_frame_layout.setSpacing(12)
         
-        input_label = QLabel("📝 描述你想要的画面")
+        input_label = QLabel("描述你想要的画面")
         input_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         input_frame_layout.addWidget(input_label)
         
@@ -383,7 +383,7 @@ class AIGenerateDialog(QDialog):
         upload_layout.setSpacing(12)
         
         img_header = QHBoxLayout()
-        img_label = QLabel("🖼 参考图片")
+        img_label = QLabel("参考图片")
         img_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         img_header.addWidget(img_label)
         
@@ -454,7 +454,7 @@ class AIGenerateDialog(QDialog):
         output_frame_layout.setSpacing(12)
         
         output_header = QHBoxLayout()
-        output_label = QLabel("✨ AI 生成结果")
+        output_label = QLabel("AI 生成结果")
         output_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         output_header.addWidget(output_label)
         
@@ -514,14 +514,14 @@ class AIGenerateDialog(QDialog):
         self.cancel_btn.clicked.connect(self._on_cancel)
         footer_layout.addWidget(self.cancel_btn)
         
-        self.apply_btn = QPushButton("应用到表单")
+        self.apply_btn = QPushButton("应用提示词")
         self.apply_btn.setObjectName("secondaryButton")
         self.apply_btn.setEnabled(False)
         self.apply_btn.setStyleSheet(button_style)
         self.apply_btn.clicked.connect(self._on_apply)
         footer_layout.addWidget(self.apply_btn)
         
-        self.generate_btn = QPushButton("生成")
+        self.generate_btn = QPushButton("开始AI生成")
         self.generate_btn.setObjectName("primaryButton")
         self.generate_btn.setStyleSheet(button_style + """
             QPushButton#primaryButton {
@@ -619,7 +619,7 @@ class AIGenerateDialog(QDialog):
                 "background-color: #f6ffed; color: #52c41a; font-weight: 500;"
             )
         else:
-            self.config_status.setText("⚠ 未配置")
+            self.config_status.setText("未配置")
             self.config_status.setStyleSheet(
                 "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
                 "background-color: #fff7e6; color: #fa8c16; font-weight: 500;"
@@ -665,6 +665,16 @@ class AIGenerateDialog(QDialog):
         self._is_generating = True
         self._set_generating_ui(True)
         self.apply_btn.setEnabled(False)
+        # 将应用按钮恢复为普通样式
+        self.apply_btn.setObjectName("secondaryButton")
+        self.apply_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 24px;
+                font-size: 14px;
+                min-width: 100px;
+                max-width: 100px;
+            }
+        """)
         
         # 传递图片路径列表
         image_paths = self.selected_images.copy() if self.selected_images else None
@@ -693,7 +703,7 @@ class AIGenerateDialog(QDialog):
             self.status_label.setText("生成中...")
             self.status_label.setStyleSheet("color: #2196F3; font-size: 12px;")
         else:
-            self.generate_btn.setText("生成")
+            self.generate_btn.setText("开始AI生成")
     
     def _on_generate_progress(self, message: str):
         """进度更新"""
@@ -719,6 +729,28 @@ class AIGenerateDialog(QDialog):
         self.status_label.setText("生成完成")
         self.status_label.setStyleSheet("color: #4CAF50; font-size: 12px;")
         self.apply_btn.setEnabled(True)
+        # 将应用按钮改为蓝色高亮样式
+        self.apply_btn.setObjectName("primaryButton")
+        self.apply_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 24px;
+                font-size: 14px;
+                min-width: 100px;
+                max-width: 100px;
+            }
+            QPushButton#primaryButton {
+                background-color: #1890ff;
+                color: white;
+                border: none;
+                font-weight: 500;
+            }
+            QPushButton#primaryButton:hover {
+                background-color: #40a9ff;
+            }
+            QPushButton#primaryButton:disabled {
+                background-color: #d9d9d9;
+            }
+        """)
     
     def _on_generate_finished(self, data: dict):
         """生成完成（JSON解析后）"""
@@ -885,7 +917,7 @@ class AIModifyDialog(QDialog):
         self._update_config_status()
         
         # 配置按钮
-        self.config_btn = QPushButton("⚙ 配置")
+        self.config_btn = QPushButton("配置")
         self.config_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 16px;
@@ -928,7 +960,7 @@ class AIModifyDialog(QDialog):
         input_frame_layout.setContentsMargins(20, 20, 20, 20)
         input_frame_layout.setSpacing(12)
         
-        input_label = QLabel("📝 描述你想要的修改")
+        input_label = QLabel("描述你想要的修改")
         input_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         input_frame_layout.addWidget(input_label)
         
@@ -972,7 +1004,7 @@ class AIModifyDialog(QDialog):
         upload_layout.setSpacing(12)
         
         img_header = QHBoxLayout()
-        img_label = QLabel("🖼 参考图片")
+        img_label = QLabel("参考图片")
         img_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         img_header.addWidget(img_label)
         
@@ -1043,7 +1075,7 @@ class AIModifyDialog(QDialog):
         output_frame_layout.setSpacing(12)
         
         output_header = QHBoxLayout()
-        output_label = QLabel("✨ AI 修改结果")
+        output_label = QLabel("AI 修改结果")
         output_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         output_header.addWidget(output_label)
         
@@ -1125,14 +1157,14 @@ class AIModifyDialog(QDialog):
         self.cancel_btn.clicked.connect(self._on_cancel)
         footer_layout.addWidget(self.cancel_btn)
         
-        self.apply_btn = QPushButton("应用到表单")
+        self.apply_btn = QPushButton("应用提示词")
         self.apply_btn.setObjectName("secondaryButton")
         self.apply_btn.setEnabled(False)
         self.apply_btn.setStyleSheet(button_style)
         self.apply_btn.clicked.connect(self._on_apply)
         footer_layout.addWidget(self.apply_btn)
         
-        self.generate_btn = QPushButton("修改")
+        self.generate_btn = QPushButton("开始AI修改")
         self.generate_btn.setObjectName("primaryButton")
         self.generate_btn.setStyleSheet(button_style + """
             QPushButton#primaryButton {
@@ -1230,7 +1262,7 @@ class AIModifyDialog(QDialog):
                 "background-color: #f6ffed; color: #52c41a; font-weight: 500;"
             )
         else:
-            self.config_status.setText("⚠ 未配置")
+            self.config_status.setText("未配置")
             self.config_status.setStyleSheet(
                 "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
                 "background-color: #fff7e6; color: #fa8c16; font-weight: 500;"
@@ -1289,6 +1321,16 @@ class AIModifyDialog(QDialog):
         self._is_generating = True
         self._set_generating_ui(True)
         self.apply_btn.setEnabled(False)
+        # 将应用按钮恢复为普通样式
+        self.apply_btn.setObjectName("secondaryButton")
+        self.apply_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 24px;
+                font-size: 14px;
+                min-width: 100px;
+                max-width: 100px;
+            }
+        """)
         self.result_stack.setCurrentIndex(0)  # 切换到流式输出视图
         
         # 准备当前JSON数据
@@ -1322,7 +1364,7 @@ class AIModifyDialog(QDialog):
             self.status_label.setText("修改中...")
             self.status_label.setStyleSheet("color: #2196F3; font-size: 12px;")
         else:
-            self.generate_btn.setText("修改")
+            self.generate_btn.setText("开始AI修改")
             self.status_label.setText("")
 
     def _on_generate_progress(self, message: str):
@@ -1351,6 +1393,28 @@ class AIModifyDialog(QDialog):
         try:
             self.modified_data = json.loads(self._full_content)
             self.apply_btn.setEnabled(True)
+            # 将应用按钮改为蓝色高亮样式
+            self.apply_btn.setObjectName("primaryButton")
+            self.apply_btn.setStyleSheet("""
+                QPushButton {
+                    padding: 10px 24px;
+                    font-size: 14px;
+                    min-width: 100px;
+                    max-width: 100px;
+                }
+                QPushButton#primaryButton {
+                    background-color: #1890ff;
+                    color: white;
+                    border: none;
+                    font-weight: 500;
+                }
+                QPushButton#primaryButton:hover {
+                    background-color: #40a9ff;
+                }
+                QPushButton#primaryButton:disabled {
+                    background-color: #d9d9d9;
+                }
+            """)
             self.apply_btn.setFocus()
             # 显示差异对比
             self._show_differences()
