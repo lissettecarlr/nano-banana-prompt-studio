@@ -11,9 +11,10 @@ from PyQt6.QtCore import Qt
 class FieldGroup(QFrame):
     """带标题的字段分组容器"""
 
-    def __init__(self, title: str, parent=None):
+    def __init__(self, title: str, parent=None, color_class: str = None):
         super().__init__(parent)
         self.title = title
+        self.color_class = color_class
         self._setup_ui()
 
     def _setup_ui(self):
@@ -25,7 +26,11 @@ class FieldGroup(QFrame):
 
         # 标题
         title_label = QLabel(self.title)
-        title_label.setObjectName("groupTitle")
+        # 如果指定了颜色类，使用特定的objectName
+        if self.color_class:
+            title_label.setObjectName(f"groupTitle_{self.color_class}")
+        else:
+            title_label.setObjectName("groupTitle")
         layout.addWidget(title_label)
 
         # 内容容器

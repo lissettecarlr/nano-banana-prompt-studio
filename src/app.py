@@ -206,7 +206,67 @@ class PromptGeneratorApp(QMainWindow):
         layout.setSpacing(16)
         layout.setContentsMargins(0, 0, 16, 0)
 
-        # ===== 画幅设置 =====
+        # ===== 1. 基础设置 =====
+        basic_group = FieldGroup("基础设置", color_class="basic")
+        self._add_field(basic_group, "风格模式", "风格模式")
+        self._add_field(basic_group, "画面气质", "画面气质")
+        layout.addWidget(basic_group)
+
+        # ===== 2. 场景设置 =====
+        scene_group = FieldGroup("场景设置", color_class="scene")
+        
+        # 环境
+        self._add_field(scene_group, "地点设定", "地点设定")
+        self._add_field(scene_group, "光线", "光线")
+        self._add_field(scene_group, "天气氛围", "天气氛围")
+        
+        # 主体整体描述
+        self._add_field(scene_group, "整体描述", "整体描述")
+        
+        # 背景
+        self._add_field(scene_group, "背景描述", "背景描述")
+        self._add_field(scene_group, "景深", "景深")
+        
+        layout.addWidget(scene_group)
+
+        # ===== 3. 主体细节 =====
+        subject_group = FieldGroup("主体细节", color_class="subject")
+        
+        # 外形特征
+        self._add_field(subject_group, "身材", "身材")
+        self._add_field(subject_group, "面部", "面部")
+        self._add_field(subject_group, "头发", "头发")
+        self._add_field(subject_group, "眼睛", "眼睛")
+        
+        # 表情与动作
+        self._add_field(subject_group, "情绪", "情绪")
+        self._add_field(subject_group, "动作", "动作")
+        
+        # 服装配饰
+        self._add_field(subject_group, "穿着", "穿着")
+        self._add_field(subject_group, "服装细节", "服装细节")
+        self._add_field(subject_group, "配饰", "配饰")
+        
+        layout.addWidget(subject_group)
+
+        # ===== 4. 相机与构图 =====
+        camera_group = FieldGroup("相机与构图", color_class="camera")
+        self._add_field(camera_group, "机位角度", "机位角度")
+        self._add_field(camera_group, "构图", "构图")
+        self._add_field(camera_group, "镜头特性", "镜头特性")
+        self._add_field(camera_group, "传感器画质", "传感器画质")
+        layout.addWidget(camera_group)
+
+        # ===== 5. 审美控制 =====
+        aesthetic_group = FieldGroup("审美控制", color_class="aesthetic")
+        self._add_field(aesthetic_group, "呈现意图", "呈现意图")
+        self._add_field(aesthetic_group, "材质真实度", "材质真实度")
+        self._add_field(aesthetic_group, "整体色调", "整体色调")
+        self._add_field(aesthetic_group, "对比度", "对比度")
+        self._add_field(aesthetic_group, "特殊效果", "特殊效果")
+        layout.addWidget(aesthetic_group)
+
+        # ===== 6. 画幅设置（可选） =====
         aspect_container = QWidget()
         aspect_layout = QVBoxLayout(aspect_container)
         aspect_layout.setContentsMargins(0, 0, 0, 0)
@@ -220,7 +280,7 @@ class PromptGeneratorApp(QMainWindow):
         aspect_layout.addWidget(self.aspect_enabled)
 
         # 画幅设置分组
-        self.aspect_group = FieldGroup("画幅设置")
+        self.aspect_group = FieldGroup("画幅设置", color_class="aspect")
         self.aspect_selector = AspectRatioSelector()
         self.aspect_selector.value_changed.connect(self._on_field_changed)
         self.aspect_group.add_widget(self.aspect_selector)
@@ -229,69 +289,7 @@ class PromptGeneratorApp(QMainWindow):
 
         layout.addWidget(aspect_container)
 
-        # ===== 基础设置 =====
-        basic_group = FieldGroup("基础设置")
-        self._add_field(basic_group, "风格模式", "风格模式")
-        self._add_field(basic_group, "画面气质", "画面气质")
-        layout.addWidget(basic_group)
-
-        # ===== 相机设置 =====
-        camera_group = FieldGroup("相机设置")
-        self._add_field(camera_group, "机位角度", "机位角度")
-        self._add_field(camera_group, "构图", "构图")
-        self._add_field(camera_group, "镜头特性", "镜头特性")
-        self._add_field(camera_group, "传感器画质", "传感器画质")
-        layout.addWidget(camera_group)
-
-        # ===== 场景 - 环境 =====
-        env_group = FieldGroup("场景 · 环境")
-        self._add_field(env_group, "地点设定", "地点设定")
-        self._add_field(env_group, "光线", "光线")
-        self._add_field(env_group, "天气氛围", "天气氛围")
-        layout.addWidget(env_group)
-
-        # ===== 场景 - 主体描述 =====
-        subject_group = FieldGroup("场景 · 主体")
-        self._add_field(subject_group, "整体描述", "整体描述")
-        layout.addWidget(subject_group)
-
-        # ===== 主体 - 外形特征 =====
-        appearance_group = FieldGroup("主体 · 外形特征")
-        self._add_field(appearance_group, "身材", "身材")
-        self._add_field(appearance_group, "面部", "面部")
-        self._add_field(appearance_group, "头发", "头发")
-        self._add_field(appearance_group, "眼睛", "眼睛")
-        layout.addWidget(appearance_group)
-
-        # ===== 主体 - 表情与动作 =====
-        action_group = FieldGroup("主体 · 表情与动作")
-        self._add_field(action_group, "情绪", "情绪")
-        self._add_field(action_group, "动作", "动作")
-        layout.addWidget(action_group)
-
-        # ===== 主体 - 服装 =====
-        clothing_group = FieldGroup("主体 · 服装")
-        self._add_field(clothing_group, "穿着", "穿着")
-        self._add_field(clothing_group, "服装细节", "服装细节")
-        self._add_field(clothing_group, "配饰", "配饰")
-        layout.addWidget(clothing_group)
-
-        # ===== 背景 =====
-        bg_group = FieldGroup("背景")
-        self._add_field(bg_group, "背景描述", "背景描述")
-        self._add_field(bg_group, "景深", "景深")
-        layout.addWidget(bg_group)
-
-        # ===== 审美控制 =====
-        aesthetic_group = FieldGroup("审美控制")
-        self._add_field(aesthetic_group, "呈现意图", "呈现意图")
-        self._add_field(aesthetic_group, "材质真实度", "材质真实度")
-        self._add_field(aesthetic_group, "整体色调", "整体色调")
-        self._add_field(aesthetic_group, "对比度", "对比度")
-        self._add_field(aesthetic_group, "特殊效果", "特殊效果")
-        layout.addWidget(aesthetic_group)
-
-        # ===== 反向提示词 =====
+        # ===== 7. 反向提示词（可选） =====
         negative_container = QWidget()
         negative_layout = QVBoxLayout(negative_container)
         negative_layout.setContentsMargins(0, 0, 0, 0)
@@ -305,7 +303,7 @@ class PromptGeneratorApp(QMainWindow):
         negative_layout.addWidget(self.negative_prompt_enabled)
 
         # 反向提示词分组
-        self.negative_group = FieldGroup("反向提示词")
+        self.negative_group = FieldGroup("反向提示词", color_class="negative")
         self._add_multi_select_field(self.negative_group, "禁止元素", "禁止元素")
         self._add_multi_select_field(self.negative_group, "禁止风格", "禁止风格")
         self.negative_group.setVisible(False)  # 默认隐藏
@@ -420,15 +418,12 @@ class PromptGeneratorApp(QMainWindow):
         # 收集禁止风格列表（多选）
         forbidden_styles = self.field_widgets.get("禁止风格").get_value() if "禁止风格" in self.field_widgets else []
 
+        # 按照新的分类顺序组织数据
         data = {
+            # 1. 基础设置
             "风格模式": get_value("风格模式"),
             "画面气质": get_value("画面气质"),
-            "相机": {
-                "机位角度": get_value("机位角度"),
-                "构图": get_value("构图"),
-                "镜头特性": get_value("镜头特性"),
-                "传感器画质": get_value("传感器画质"),
-            },
+            # 2. 场景设置
             "场景": {
                 "环境": {
                     "地点设定": get_value("地点设定"),
@@ -458,6 +453,14 @@ class PromptGeneratorApp(QMainWindow):
                     "景深": get_value("景深"),
                 },
             },
+            # 3. 相机与构图
+            "相机": {
+                "机位角度": get_value("机位角度"),
+                "构图": get_value("构图"),
+                "镜头特性": get_value("镜头特性"),
+                "传感器画质": get_value("传感器画质"),
+            },
+            # 4. 审美控制
             "审美控制": {
                 "呈现意图": get_value("呈现意图"),
                 "材质真实度": materials if materials else [get_value("材质真实度")],

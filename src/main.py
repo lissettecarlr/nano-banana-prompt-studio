@@ -90,7 +90,6 @@ def main():
 
     app = QApplication(sys.argv)
 
-    # ===== 强制使用 Fusion 风格，脱离系统主题 =====
     app.setStyle(QStyleFactory.create("Fusion"))
     
     # ===== 应用自定义浅色调色板 =====

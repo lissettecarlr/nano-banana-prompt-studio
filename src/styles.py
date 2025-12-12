@@ -140,6 +140,84 @@ QScrollBar::sub-page:horizontal {{
     border-bottom: 2px solid {BORDER_DEFAULT};
 }}
 
+/* 主分类标题颜色 - 区分不同分类 */
+#groupTitle_basic {{
+    color: #6366F1;  /* 靛蓝色 - 基础设置 */
+    border-bottom-color: #C7D2FE;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #C7D2FE;
+}}
+
+#groupTitle_scene {{
+    color: #059669;  /* 绿色 - 场景设置 */
+    border-bottom-color: #A7F3D0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #A7F3D0;
+}}
+
+#groupTitle_subject {{
+    color: #DB2777;  /* 玫瑰色 - 主体细节 */
+    border-bottom-color: #FBCFE8;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #FBCFE8;
+}}
+
+#groupTitle_camera {{
+    color: #D97706;  /* 橙色 - 相机与构图 */
+    border-bottom-color: #FDE68A;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #FDE68A;
+}}
+
+#groupTitle_aesthetic {{
+    color: #7C3AED;  /* 紫色 - 审美控制 */
+    border-bottom-color: #DDD6FE;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #DDD6FE;
+}}
+
+#groupTitle_aspect {{
+    color: #64748B;  /* 灰蓝色 - 画幅设置 */
+    border-bottom-color: #CBD5E1;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #CBD5E1;
+}}
+
+#groupTitle_negative {{
+    color: #DC2626;  /* 红色 - 反向提示词 */
+    border-bottom-color: #FECACA;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 0 8px 0;
+    border: none;
+    border-bottom: 2px solid #FECACA;
+}}
+
 #fieldLabel {{
     color: {TEXT_SECONDARY};
     font-size: 12px;
