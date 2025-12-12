@@ -36,12 +36,10 @@
 ![UI Preview](./images/UI_2.png)
 ----
 
-* AI修挂提示词界面
+* AI修改提示词界面
 ![UI Preview](./images/UI_3.png)
 ----
 
-* 图片生成界面
-![UI Preview](./images/UI_4.png)
 
 ## 快速开始
 
