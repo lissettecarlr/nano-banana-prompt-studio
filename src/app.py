@@ -17,9 +17,13 @@ from PyQt6.QtWidgets import (
     QInputDialog,
     QMenu,
     QCheckBox,
+    QListWidget,
+    QListWidgetItem,
+    QFileDialog,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QAction, QPixmap, QIcon
+from PyQt6.QtGui import QFont, QAction, QPixmap, QIcon, QImage
 
 try:
     import pyperclip
@@ -35,7 +39,9 @@ from utils.yaml_handler import YamlHandler
 from utils.preset_manager import PresetManager
 from utils.resource_path import get_images_dir
 from components.ai_dialog import AIGenerateDialog
-from components.ai_image_dialog import AIImageGenerateDialog
+from components.ai_image_dialog import GeminiImageThread
+from components.gemini_client import ASPECT_RATIO_LIST, IMAGE_SIZE_LIST
+from utils.ai_config import AIConfigManager
 from styles import LIGHT_THEME
 
 
@@ -46,15 +52,23 @@ class PromptGeneratorApp(QMainWindow):
         super().__init__()
         self.yaml_handler = YamlHandler()
         self.preset_manager = PresetManager()
+        self.config_manager = AIConfigManager()
         self.field_widgets = {}  # 存储所有字段的widget引用
         self.current_preset_name = None
+        
+        # 生图相关
+        self.selected_images = []
+        self.image_buttons = []  # 存储图片按钮的列表
+        self.generated_image_bytes = None
+        self.generated_pixmap = None
+        self.worker_thread = None
 
         self._setup_window()
         self._setup_ui()
         self._load_presets_to_selector()
 
     def _setup_window(self):
-        self.setWindowTitle("Nano Banana 提示词生成器")
+        self.setWindowTitle("Nano Banana 生图工具")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
         self.setStyleSheet(LIGHT_THEME)
@@ -79,21 +93,28 @@ class PromptGeneratorApp(QMainWindow):
         preset_bar = self._create_preset_bar()
         main_layout.addWidget(preset_bar)
 
-        # 主内容区域 - 使用分割器
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(8)
+        # 主内容区域 - 使用分割器（三列布局）
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setHandleWidth(8)
 
         # 左侧：表单区域
         form_area = self._create_form_area()
-        splitter.addWidget(form_area)
+        self.main_splitter.addWidget(form_area)
 
-        # 右侧：预览区域
-        preview_area = self._create_preview_area()
-        splitter.addWidget(preview_area)
+        # 中间：JSON预览区域（可折叠）
+        self.json_preview_area = self._create_json_preview_area()
+        self.main_splitter.addWidget(self.json_preview_area)
 
-        # 设置分割比例
-        splitter.setSizes([700, 500])
-        main_layout.addWidget(splitter, 1)
+        # 右侧：生图区域
+        image_generate_area = self._create_image_generate_area()
+        self.main_splitter.addWidget(image_generate_area)
+
+        # 设置分割比例，默认隐藏中间列
+        self.main_splitter.setSizes([600, 0, 600])
+        # 默认隐藏中间列
+        self.json_preview_area.setVisible(False)
+        self.json_preview_visible = False
+        main_layout.addWidget(self.main_splitter, 1)
 
         # 底部按钮区域
         button_bar = self._create_button_bar()
@@ -121,11 +142,11 @@ class PromptGeneratorApp(QMainWindow):
         title_layout.setContentsMargins(12, 0, 0, 0)
         title_layout.setSpacing(4)
 
-        title = QLabel("Nano Banana 提示词生成器")
+        title = QLabel("Nano Banana 图片生成工具")
         title.setObjectName("appTitle")
         title_layout.addWidget(title)
 
-        subtitle = QLabel("AI绘画提示词可视化编辑工具")
+        subtitle = QLabel("一站式AI图片生成工具，通过结构化提示词控制图片生成质量")
         subtitle.setObjectName("appSubtitle")
         title_layout.addWidget(subtitle)
 
@@ -175,12 +196,7 @@ class PromptGeneratorApp(QMainWindow):
         ai_modify_btn.clicked.connect(self._show_ai_modify_dialog)
         layout.addWidget(ai_modify_btn)
 
-        # AI 生图按钮
-        ai_image_btn = QPushButton("Banana图片生成")
-        ai_image_btn.setObjectName("aiGenerateButton")
-        ai_image_btn.setToolTip("使用 Gemini 根据提示词生成图片")
-        ai_image_btn.clicked.connect(self._show_ai_image_dialog)
-        layout.addWidget(ai_image_btn)
+        # 移除独立的AI生图按钮，已整合到主界面右侧
 
         layout.addStretch()
 
@@ -193,6 +209,11 @@ class PromptGeneratorApp(QMainWindow):
         manage_btn = QPushButton("管理预设")
         manage_btn.clicked.connect(self._show_preset_menu)
         layout.addWidget(manage_btn)
+
+        # AI配置按钮
+        ai_config_btn = QPushButton("AI配置")
+        ai_config_btn.clicked.connect(self._open_ai_config_dialog)
+        layout.addWidget(ai_config_btn)
 
         return bar
 
@@ -335,7 +356,8 @@ class PromptGeneratorApp(QMainWindow):
         group.add_field(label, widget)
         self.field_widgets[field_name] = widget
 
-    def _create_preview_area(self) -> QWidget:
+    def _create_json_preview_area(self) -> QWidget:
+        """创建JSON预览区域（可折叠）"""
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(16, 0, 0, 0)
@@ -357,25 +379,227 @@ class PromptGeneratorApp(QMainWindow):
 
         return container
 
+    def _toggle_json_preview(self):
+        """切换JSON预览列的显示/隐藏"""
+        self.json_preview_visible = not self.json_preview_visible
+        self.json_preview_area.setVisible(self.json_preview_visible)
+        
+        # 更新按钮文字
+        if self.json_preview_visible:
+            self.json_toggle_btn.setText("JSON隐藏")
+        else:
+            self.json_toggle_btn.setText("JSON浏览")
+        
+        # 调整分割器大小
+        if self.json_preview_visible:
+            # 显示时，平均分配三列
+            self.main_splitter.setSizes([500, 300, 500])
+        else:
+            # 隐藏时，左右两列平分
+            self.main_splitter.setSizes([600, 0, 600])
+
+    def _create_image_generate_area(self) -> QWidget:
+        """创建生图区域"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(16, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # 标题
+        title = QLabel("图片生成")
+        title.setObjectName("previewTitle")
+        layout.addWidget(title)
+
+        # 上方：参数和参考图片区域（合并）
+        param_frame = QFrame()
+        param_frame.setObjectName("paramFrame")
+        param_frame.setStyleSheet("""
+            QFrame#paramFrame {
+                background-color: #ffffff;
+                border: 1px solid #e8e8e8;
+                border-radius: 8px;
+            }
+        """)
+        param_layout = QVBoxLayout(param_frame)
+        param_layout.setContentsMargins(16, 12, 16, 12)
+        param_layout.setSpacing(12)
+
+        # 宽高比和输出尺寸合并成一行
+        param_row = QWidget()
+        param_row_layout = QHBoxLayout(param_row)
+        param_row_layout.setContentsMargins(0, 0, 0, 0)
+        param_row_layout.setSpacing(12)
+        
+        aspect_container = self._create_param_row("宽高比", ASPECT_RATIO_LIST)
+        self.aspect_combo = aspect_container.findChild(QComboBox)
+        param_row_layout.addWidget(aspect_container, 1)
+        
+        size_container = self._create_param_row("输出尺寸", IMAGE_SIZE_LIST)
+        self.size_combo = size_container.findChild(QComboBox)
+        param_row_layout.addWidget(size_container, 1)
+        
+        param_layout.addWidget(param_row)
+
+        # 参考图片区域：合并到参数设置中
+        img_row = QWidget()
+        img_row_layout = QHBoxLayout(img_row)
+        img_row_layout.setContentsMargins(0, 0, 0, 0)
+        img_row_layout.setSpacing(12)
+
+        # 添加参考图按钮
+        self.add_image_btn = QPushButton("添加参考图")
+        self.add_image_btn.clicked.connect(self._add_images)
+        self.add_image_btn.setStyleSheet("""
+            QPushButton {
+                padding: 6px 16px;
+                font-size: 12px;
+                border: 1px solid #d9d9d9;
+                border-radius: 4px;
+                background-color: #fafafa;
+                min-width: 90px;
+            }
+            QPushButton:hover {
+                border-color: #40a9ff;
+                background-color: #e6f7ff;
+                color: #1890ff;
+            }
+        """)
+        img_row_layout.addWidget(self.add_image_btn)
+
+        # 图片按钮容器（显示图一、图二等）
+        self.image_buttons_container = QWidget()
+        self.image_buttons_layout = QHBoxLayout(self.image_buttons_container)
+        self.image_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        self.image_buttons_layout.setSpacing(8)
+        self.image_buttons_layout.addStretch()
+        
+        # 提示文本
+        self.image_hint_label = QLabel("点击删除参考图")
+        self.image_hint_label.setStyleSheet("font-size: 11px; color: #8c8c8c;")
+        self.image_buttons_layout.addWidget(self.image_hint_label)
+        
+        img_row_layout.addWidget(self.image_buttons_container, 1)
+
+        param_layout.addWidget(img_row)
+        layout.addWidget(param_frame)
+
+        # 下方：预览区域
+        preview_frame = QFrame()
+        preview_frame.setObjectName("previewFrame")
+        preview_frame.setStyleSheet("""
+            QFrame#previewFrame {
+                background-color: #ffffff;
+                border: 1px solid #e8e8e8;
+                border-radius: 8px;
+            }
+        """)
+        preview_layout = QVBoxLayout(preview_frame)
+        preview_layout.setContentsMargins(16, 16, 16, 16)
+        preview_layout.setSpacing(12)
+
+        preview_title = QLabel("生成预览")
+        preview_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #262626;")
+        preview_layout.addWidget(preview_title)
+
+        # 预览画布
+        preview_canvas = QFrame()
+        preview_canvas.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
+            "stop:0 #fafafa, stop:1 #f0f0f0); "
+            "border: 2px dashed #d9d9d9; border-radius: 6px;"
+        )
+        canvas_layout = QVBoxLayout(preview_canvas)
+        canvas_layout.setContentsMargins(16, 16, 16, 16)
+
+        self.preview_area = QLabel("图片生成后会显示在这里")
+        self.preview_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_area.setMinimumHeight(300)
+        self.preview_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_area.setStyleSheet("color: #bfbfbf; font-size: 13px; border: none;")
+        # 禁用自动缩放，使用手动缩放以保持宽高比
+        self.preview_area.setScaledContents(False)
+        canvas_layout.addWidget(self.preview_area)
+
+        preview_layout.addWidget(preview_canvas, 1)
+        layout.addWidget(preview_frame, 1)
+
+        # 状态标签
+        self.image_status_label = QLabel("准备就绪")
+        self.image_status_label.setStyleSheet("color: #595959; font-size: 12px;")
+        layout.addWidget(self.image_status_label)
+
+        return container
+
+    def _create_param_row(self, label_text: str, items: list, default: str = None) -> QWidget:
+        """创建参数行"""
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(12)
+
+        label = QLabel(label_text)
+        label.setStyleSheet("font-size: 12px; color: #595959; min-width: 60px;")
+        container_layout.addWidget(label)
+
+        combo = QComboBox()
+        combo.addItems(items)
+        if default:
+            combo.setCurrentText(default)
+        combo.setStyleSheet("""
+            QComboBox {
+                padding: 4px 8px;
+                border: 1px solid #d9d9d9;
+                border-radius: 4px;
+                background-color: white;
+                min-height: 24px;
+                font-size: 12px;
+            }
+            QComboBox:hover {
+                border-color: #40a9ff;
+            }
+        """)
+        container_layout.addWidget(combo, 1)
+
+        return container
+
     def _create_button_bar(self) -> QWidget:
         bar = QWidget()
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(0, 10, 0, 0)
         layout.setSpacing(12)
 
+        # 左侧按钮组
         # 清空按钮
         clear_btn = QPushButton("清空表单")
         clear_btn.setObjectName("secondaryButton")
         clear_btn.clicked.connect(self._clear_form)
         layout.addWidget(clear_btn)
 
-        layout.addStretch()
-
-        # 复制按钮
-        copy_btn = QPushButton("复制到剪贴板")
-        copy_btn.setObjectName("primaryButton")
+        # 复制按钮（从右侧移过来，样式和清空表单一致）
+        copy_btn = QPushButton("复制表单")
+        copy_btn.setObjectName("secondaryButton")
         copy_btn.clicked.connect(self._copy_to_clipboard)
         layout.addWidget(copy_btn)
+
+        # JSON浏览/隐藏按钮
+        self.json_toggle_btn = QPushButton("JSON浏览")
+        self.json_toggle_btn.setObjectName("secondaryButton")
+        self.json_toggle_btn.clicked.connect(self._toggle_json_preview)
+        layout.addWidget(self.json_toggle_btn)
+
+        layout.addStretch()
+
+        # 右侧按钮组：生图相关按钮
+        self.save_image_btn = QPushButton("保存图片")
+        self.save_image_btn.setObjectName("secondaryButton")
+        self.save_image_btn.setEnabled(False)
+        self.save_image_btn.clicked.connect(self._save_image)
+        layout.addWidget(self.save_image_btn)
+
+        self.generate_image_btn = QPushButton("生成图片")
+        self.generate_image_btn.setObjectName("primaryButton")
+        self.generate_image_btn.clicked.connect(self._on_generate_image_clicked)
+        layout.addWidget(self.generate_image_btn)
 
         return bar
 
@@ -741,12 +965,246 @@ class PromptGeneratorApp(QMainWindow):
         dialog.modified.connect(self._on_ai_modified)
         dialog.exec()
 
-    def _show_ai_image_dialog(self):
-        """显示AI 生图对话框"""
+    # ========== 生图相关方法 ==========
+
+    def _add_images(self):
+        """添加参考图片"""
+        if len(self.selected_images) >= 3:
+            QMessageBox.information(self, "提示", "最多只能选择 3 张参考图")
+            return
+
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "选择参考图片",
+            "",
+            "图像文件 (*.png *.jpg *.jpeg *.webp *.bmp)"
+        )
+        if not files:
+            return
+
+        remaining = 3 - len(self.selected_images)
+        for path in files[:remaining]:
+            if path not in self.selected_images:
+                self.selected_images.append(path)
+                self._append_image_item(path)
+
+    def _number_to_chinese(self, num: int) -> str:
+        """将数字转换为中文数字"""
+        chinese_nums = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+        if 1 <= num <= 10:
+            return chinese_nums[num]
+        return str(num)
+
+    def _append_image_item(self, path: str):
+        """添加图片按钮"""
+        index = len(self.selected_images) - 1  # 图片已添加到列表，所以索引是长度减1
+        chinese_num = self._number_to_chinese(index + 1)
+        btn = QPushButton(f"图{chinese_num}")
+        btn.setToolTip(path)
+        btn.setStyleSheet("""
+            QPushButton {
+                padding: 4px 12px;
+                font-size: 12px;
+                border: 1px solid #d9d9d9;
+                border-radius: 4px;
+                background-color: #ffffff;
+                min-width: 50px;
+            }
+            QPushButton:hover {
+                border-color: #ff4d4f;
+                background-color: #fff1f0;
+                color: #ff4d4f;
+            }
+        """)
+        # 连接删除事件，确保正确捕获索引
+        btn.clicked.connect(lambda checked, idx=index: self._remove_image_by_index(idx))
+        self.image_buttons.append(btn)
+        # 在提示文本之前插入按钮
+        self.image_buttons_layout.insertWidget(self.image_buttons_layout.count() - 1, btn)
+
+    def _remove_image_by_index(self, index: int):
+        """根据索引删除图片"""
+        if 0 <= index < len(self.selected_images):
+            # 删除图片路径
+            self.selected_images.pop(index)
+            # 删除按钮
+            btn = self.image_buttons.pop(index)
+            btn.setParent(None)
+            btn.deleteLater()
+            # 更新剩余按钮的文本和事件
+            self._refresh_image_buttons()
+
+    def _refresh_image_buttons(self):
+        """刷新图片按钮的文本和事件"""
+        for i, btn in enumerate(self.image_buttons):
+            chinese_num = self._number_to_chinese(i + 1)
+            btn.setText(f"图{chinese_num}")
+            # 断开旧连接
+            try:
+                btn.clicked.disconnect()
+            except TypeError:
+                pass  # 如果没有连接，忽略错误
+            # 连接新事件，使用lambda并确保正确捕获索引
+            btn.clicked.connect(lambda checked, idx=i: self._remove_image_by_index(idx))
+
+    def _clear_images(self):
+        """清空所有图片"""
+        # 删除所有按钮
+        for btn in self.image_buttons:
+            btn.setParent(None)
+            btn.deleteLater()
+        self.image_buttons.clear()
+        self.selected_images.clear()
+
+    def _on_generate_image_clicked(self):
+        """生成图片按钮点击"""
+        # 先检查是否有任务进行中，如果有则直接返回（此时按钮应该已被禁用）
+        if self.worker_thread and self.worker_thread.isRunning():
+            QMessageBox.information(self, "提示", "已有任务进行中，请稍候")
+            return
+
         prompt_data = self._collect_form_data()
         prompt_text = json.dumps(prompt_data, ensure_ascii=False, indent=2)
-        dialog = AIImageGenerateDialog(prompt_text, self)
+        
+        if not prompt_text or prompt_text.strip() == "{}":
+            QMessageBox.warning(self, "提示", "当前提示词为空，请先填写表单内容")
+            return
+
+        if not self.config_manager.get_gemini_api_key():
+            reply = QMessageBox.question(
+                self,
+                "未配置 API",
+                "尚未配置 Gemini API，是否现在配置？",
+                QMessageBox.StandardButton.Yes,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._open_image_config_dialog()
+            return
+
+        # 验证通过后，立即禁用按钮，防止重复点击
+        self._set_image_generating_state(True)
+        
+        self.generated_image_bytes = None
+        self.generated_pixmap = None
+        self.preview_area.setText("正在生成，请稍候...")
+        self.preview_area.setPixmap(QPixmap())
+        self.save_image_btn.setEnabled(False)
+        self._set_image_status("提交到 Gemini 服务", "#1890ff")
+
+        self.worker_thread = GeminiImageThread(
+            prompt=prompt_text,
+            image_paths=self.selected_images,
+            aspect_ratio=self.aspect_combo.currentText(),
+            image_size=self.size_combo.currentText(),
+            thinking_level="low",  # 移除思考级别参数，使用默认值
+        )
+        self.worker_thread.progress.connect(lambda msg: self._set_image_status(f"⏳ {msg}", "#1890ff"))
+        self.worker_thread.image_ready.connect(self._on_image_ready)
+        self.worker_thread.error.connect(self._on_generation_error)
+        self.worker_thread.finished.connect(self._on_thread_finished)
+        self.worker_thread.start()
+
+    def _on_thread_finished(self):
+        """线程完成"""
+        self._set_image_generating_state(False)
+        self.worker_thread = None
+
+    def _on_image_ready(self, image_bytes: bytes):
+        """图片生成完成"""
+        self.generated_image_bytes = image_bytes
+        pixmap = QPixmap.fromImage(QImage.fromData(image_bytes))
+        self.generated_pixmap = pixmap
+        self._refresh_preview_pixmap()
+        self.save_image_btn.setEnabled(True)
+        self._set_image_status("生成完成", "#52c41a")
+
+    def _on_generation_error(self, message: str):
+        """生成错误"""
+        self._set_image_status(f"生成失败：{message}", "#ff4d4f")
+        self.preview_area.setText("生成失败，请调整参数后重试")
+        # 确保在错误时也恢复按钮状态（虽然 _on_thread_finished 也会调用，但这里明确调用更安全）
+        self._set_image_generating_state(False)
+
+    def _set_image_generating_state(self, generating: bool):
+        """设置生成状态"""
+        self.aspect_combo.setEnabled(not generating)
+        self.size_combo.setEnabled(not generating)
+        self.add_image_btn.setEnabled(not generating)
+        # 禁用所有图片按钮
+        for btn in self.image_buttons:
+            btn.setEnabled(not generating)
+        self.generate_image_btn.setEnabled(not generating)
+
+    def _save_image(self):
+        """保存图片"""
+        if not self.generated_image_bytes:
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "另存为",
+            "generated.png",
+            "PNG 图片 (*.png);;JPEG 图片 (*.jpg *.jpeg)"
+        )
+        if not file_path:
+            return
+
+        import os
+        suffix = os.path.splitext(file_path)[1].lower()
+        format_name = "PNG" if suffix in ("", ".png") else "JPEG"
+        image = QImage.fromData(self.generated_image_bytes)
+        if not image.save(file_path, format_name):
+            QMessageBox.critical(self, "错误", "保存图片失败，请重试")
+        else:
+            self._set_image_status(f"图片已保存到 {file_path}", "#52c41a")
+
+    def _set_image_status(self, text: str, color: str = "#757575"):
+        """设置状态文本"""
+        self.image_status_label.setText(text)
+        self.image_status_label.setStyleSheet(f"color: {color}; font-size: 12px;")
+
+    def _open_ai_config_dialog(self):
+        """打开统一的AI配置对话框"""
+        from components.ai_dialog import UnifiedAIConfigDialog
+        dialog = UnifiedAIConfigDialog(self)
         dialog.exec()
+    
+    def _open_image_config_dialog(self):
+        """打开配置对话框（已废弃，保留以兼容）"""
+        from components.ai_dialog import UnifiedAIConfigDialog
+        dialog = UnifiedAIConfigDialog(self)
+        dialog.exec()
+
+    def _refresh_preview_pixmap(self):
+        """刷新预览图片"""
+        if not self.generated_pixmap:
+            self.preview_area.setPixmap(QPixmap())
+            self.preview_area.setScaledContents(False)
+            return
+        
+        # 获取预览区域的实际可用尺寸
+        preview_size = self.preview_area.size()
+        if preview_size.width() <= 0 or preview_size.height() <= 0:
+            # 如果尺寸还未确定，先设置原始图片
+            self.preview_area.setPixmap(self.generated_pixmap)
+            return
+        
+        # 直接使用 QPixmap.scaled() 方法，保持宽高比，确保图片完整显示
+        scaled = self.generated_pixmap.scaled(
+            preview_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        
+        self.preview_area.setPixmap(scaled)
+        self.preview_area.setScaledContents(False)  # 禁用自动缩放，使用手动缩放
+
+    def resizeEvent(self, event):
+        """窗口大小改变事件"""
+        super().resizeEvent(event)
+        if hasattr(self, 'preview_area') and self.generated_pixmap:
+            self._refresh_preview_pixmap()
 
     def _on_ai_generated(self, data: dict):
         """AI生成完成后应用到表单"""
@@ -803,6 +1261,18 @@ class PromptGeneratorApp(QMainWindow):
             # 重置反向提示词开关
             self.negative_prompt_enabled.setChecked(False)
             self.negative_group.setVisible(False)
+            # 清空生图相关
+            if hasattr(self, 'selected_images'):
+                self._clear_images()
+            self.generated_image_bytes = None
+            self.generated_pixmap = None
+            if hasattr(self, 'preview_area'):
+                self.preview_area.setText("图片生成后会显示在这里")
+                self.preview_area.setPixmap(QPixmap())
+            if hasattr(self, 'save_image_btn'):
+                self.save_image_btn.setEnabled(False)
+            if hasattr(self, 'image_status_label'):
+                self._set_image_status("准备就绪")
             self._show_toast("表单已清空")
 
     def _show_toast(self, message: str):

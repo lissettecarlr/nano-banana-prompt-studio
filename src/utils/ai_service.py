@@ -346,10 +346,18 @@ class AIModifyThread(QThread):
             config = self.config_manager.load_config()
             base_url = config.get("base_url", "").rstrip("/")
             api_key = config.get("api_key", "")
-            model = config.get("model", "gpt-4o-mini")
+            model = config.get("model", "")
             
             if not api_key:
                 self.error.emit("请先配置API密钥")
+                return
+            
+            if not base_url:
+                self.error.emit("请先配置Base URL")
+                return
+            
+            if not model:
+                self.error.emit("请先配置模型名称")
                 return
             
             # 延迟导入

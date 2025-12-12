@@ -10,7 +10,7 @@ class AIConfigManager:
     DEFAULT_CONFIG = {
         "base_url": "https://api.openai.com/v1",
         "api_key": "",
-        "model": "gpt-4o-mini",
+        "model": "gpt-5.1",
         "gemini_base_url": "",
         "gemini_api_key": "",
         "gemini_model": "gemini-3-pro-image-preview",
@@ -31,11 +31,16 @@ class AIConfigManager:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     if data:
-                        # 合并默认配置，确保所有字段都存在
-                        return {**self.DEFAULT_CONFIG, **data}
+                        # 直接返回配置文件中的值，不合并默认值
+                        # 确保所有字段都存在，但使用空字符串作为默认值
+                        result = {}
+                        for key in self.DEFAULT_CONFIG.keys():
+                            result[key] = data.get(key, "")
+                        return result
         except Exception as e:
             print(f"加载AI配置失败: {e}")
-        return self.DEFAULT_CONFIG.copy()
+        # 如果配置文件不存在或加载失败，返回所有字段为空字符串
+        return {key: "" for key in self.DEFAULT_CONFIG.keys()}
     
     def save_config(self, config: dict, merge_existing: bool = True) -> bool:
         """保存AI配置，默认保留已有字段"""
@@ -67,20 +72,20 @@ class AIConfigManager:
         return bool(config.get("api_key"))
     
     def get_base_url(self) -> str:
-        return self.load_config().get("base_url", self.DEFAULT_CONFIG["base_url"])
+        return self.load_config().get("base_url", "")
     
     def get_api_key(self) -> str:
         return self.load_config().get("api_key", "")
     
     def get_model(self) -> str:
-        return self.load_config().get("model", self.DEFAULT_CONFIG["model"])
+        return self.load_config().get("model", "")
 
     def get_gemini_config(self) -> dict:
         config = self.load_config()
         return {
-            "base_url": config.get("gemini_base_url", self.DEFAULT_CONFIG["gemini_base_url"]),
-            "api_key": config.get("gemini_api_key", self.DEFAULT_CONFIG["gemini_api_key"]),
-            "model": config.get("gemini_model", self.DEFAULT_CONFIG["gemini_model"]),
+            "base_url": config.get("gemini_base_url", ""),
+            "api_key": config.get("gemini_api_key", ""),
+            "model": config.get("gemini_model", ""),
         }
 
     def get_gemini_base_url(self) -> str:
@@ -90,5 +95,5 @@ class AIConfigManager:
         return self.get_gemini_config().get("api_key", "")
 
     def get_gemini_model(self) -> str:
-        return self.get_gemini_config().get("model", self.DEFAULT_CONFIG["gemini_model"])
+        return self.get_gemini_config().get("model", "")
 

@@ -326,37 +326,3 @@ class GeminiClient:
             raise
 
 
-if __name__ == "__main__":
-    # 测试代码
-    BASE_URL = "https://newapi.kala.love"
-    API_KEY = "sk-D09f0VLzr05YraVEegYw1MKPIrnmhE7EXWuN5GAtbH0ejHwX"
-    
-    client = GeminiClient(base_url=BASE_URL, api_key=API_KEY)
-    
-    # 测试1: 纯文本对话
-    print("=== 测试1: 纯文本对话 ===")
-    response = client.chat("你好，介绍一下你自己")
-    print(response)
-    
-    # 测试2: 图片识别
-    print("\n=== 测试2: 图片识别 ===")
-    if os.path.exists("1.png"):
-        response = client.chat("描述这张图片", images=["1.png"])
-        print(response)
-    
-    # 测试3: 图片生成
-    print("\n=== 测试3: 图片生成 ===")
-    client.set_aspect_ratio("16:9").set_image_size("2K")
-    image = client.generate_image("画一只可爱的柴犬")
-    if image:
-        image.save("generated_dog.png")
-        print("图片已保存: generated_dog.png")
-    
-    # 测试4: 图片编辑
-    print("\n=== 测试4: 图片编辑 ===")
-    if os.path.exists("1.png"):
-        image = client.generate_image("将图中的水果换成香蕉", images=["1.png"])
-        if image:
-            image.save("edited_fruit.png")
-            print("图片已保存: edited_fruit.png")
-

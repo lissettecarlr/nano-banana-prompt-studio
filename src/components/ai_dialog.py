@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QCheckBox,
     QScrollArea,
+    QComboBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QPixmap
@@ -116,7 +117,7 @@ class AIConfigDialog(QDialog):
         model_layout.addWidget(model_label)
         
         self.model_input = QLineEdit()
-        self.model_input.setPlaceholderText("gpt-4o-mini")
+        self.model_input.setPlaceholderText("gpt-5.1")
         model_layout.addWidget(self.model_input)
         
         model_hint = QLabel("OpenAI: gpt-4.1, gpt-5.1  |   通义: qwen3-max")
@@ -148,9 +149,18 @@ class AIConfigDialog(QDialog):
     def _load_config(self):
         """加载现有配置"""
         config = self.config_manager.load_config()
-        self.url_input.setText(config.get("base_url", ""))
-        self.key_input.setText(config.get("api_key", ""))
-        self.model_input.setText(config.get("model", ""))
+        # 只在配置存在且非空时设置文本，否则使用placeholder
+        base_url = config.get("base_url", "")
+        if base_url:
+            self.url_input.setText(base_url)
+        
+        api_key = config.get("api_key", "")
+        if api_key:
+            self.key_input.setText(api_key)
+        
+        model = config.get("model", "")
+        if model:
+            self.model_input.setText(model)
     
     def _toggle_key_visibility(self):
         """切换密钥可见性"""
@@ -171,12 +181,7 @@ class AIConfigDialog(QDialog):
             QMessageBox.warning(self, "提示", "请输入 API Key")
             return
         
-        if not base_url:
-            base_url = "https://api.openai.com/v1"
-        
-        if not model:
-            model = "gpt-4o-mini"
-        
+        # 直接保存用户输入的值（包括空值），不填充默认值
         config = {
             "base_url": base_url,
             "api_key": api_key,
@@ -188,6 +193,261 @@ class AIConfigDialog(QDialog):
             self.accept()
         else:
             QMessageBox.critical(self, "错误", "保存配置失败")
+
+
+class UnifiedAIConfigDialog(QDialog):
+    """统一的AI配置对话框 - 包含提示词生成和图片生成两个AI的配置"""
+    
+    config_saved = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.config_manager = AIConfigManager()
+        self._setup_ui()
+        self._load_config()
+    
+    def _setup_ui(self):
+        self.setWindowTitle("AI 配置")
+        self.setMinimumWidth(600)
+        self.setModal(True)
+        
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f5f7fa;
+            }
+            QComboBox {
+                padding: 8px 12px;
+                border: 1px solid #d9d9d9;
+                border-radius: 6px;
+                background-color: white;
+                min-height: 32px;
+            }
+            QComboBox:hover {
+                border-color: #40a9ff;
+            }
+            QLineEdit, QTextEdit {
+                padding: 8px;
+                border: 1px solid #d9d9d9;
+                border-radius: 6px;
+                background-color: white;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border-color: #40a9ff;
+            }
+            QPushButton {
+                padding: 8px 24px;
+                border-radius: 6px;
+                border: 1px solid #d9d9d9;
+                background-color: #ffffff;
+                font-size: 13px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                border-color: #40a9ff;
+                color: #40a9ff;
+            }
+            QPushButton#primaryButton {
+                background-color: #1890ff;
+                color: white;
+                border: none;
+                font-weight: 500;
+            }
+            QPushButton#primaryButton:hover {
+                background-color: #40a9ff;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(20)
+        
+        # 标题
+        title = QLabel("AI 配置")
+        title.setStyleSheet("font-size: 20px; font-weight: 700; color: #262626;")
+        layout.addWidget(title)
+        
+        # 使用滚动区域以支持更多内容
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(20)
+        
+        # ===== 第一部分：提示词生成/修改AI配置 =====
+        prompt_frame = QFrame()
+        prompt_frame.setStyleSheet(
+            "background-color: #ffffff; border: 1px solid #e8e8e8; "
+            "border-radius: 12px; padding: 4px;"
+        )
+        prompt_layout = QVBoxLayout(prompt_frame)
+        prompt_layout.setContentsMargins(20, 20, 20, 20)
+        prompt_layout.setSpacing(16)
+        
+        prompt_title = QLabel("提示词生成/修改 AI")
+        prompt_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #262626;")
+        prompt_layout.addWidget(prompt_title)
+        
+
+        
+        prompt_layout.addWidget(self._build_labeled_widget("Base URL", self._create_url_input("prompt")))
+        prompt_layout.addWidget(self._build_labeled_widget("API Key", self._create_key_input("prompt")))
+        prompt_layout.addWidget(self._build_labeled_widget("模型名称", self._create_model_input("prompt")))
+        
+        content_layout.addWidget(prompt_frame)
+        
+        # ===== 第二部分：图片生成AI配置 =====
+        image_frame = QFrame()
+        image_frame.setStyleSheet(
+            "background-color: #ffffff; border: 1px solid #e8e8e8; "
+            "border-radius: 12px; padding: 4px;"
+        )
+        image_layout = QVBoxLayout(image_frame)
+        image_layout.setContentsMargins(20, 20, 20, 20)
+        image_layout.setSpacing(16)
+        
+        image_title = QLabel("图片生成 AI")
+        image_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #262626;")
+        image_layout.addWidget(image_title)
+        
+
+        image_layout.addWidget(self._build_labeled_widget("Base URL", self._create_url_input("image")))
+        image_layout.addWidget(self._build_labeled_widget("API Key", self._create_key_input("image")))
+        image_layout.addWidget(self._build_labeled_widget("模型名称", self._create_model_input("image")))
+        
+        content_layout.addWidget(image_frame)
+        
+        content_layout.addStretch()
+        scroll.setWidget(content_widget)
+        layout.addWidget(scroll, 1)
+        
+        # 按钮行
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        btn_row.addStretch()
+        
+        cancel_btn = QPushButton("取消")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
+        
+        save_btn = QPushButton("保存配置")
+        save_btn.setObjectName("primaryButton")
+        save_btn.clicked.connect(self._save_config)
+        btn_row.addWidget(save_btn)
+        
+        layout.addLayout(btn_row)
+    
+    def _create_url_input(self, prefix: str) -> QWidget:
+        """创建URL输入框"""
+        widget = QLineEdit()
+        if prefix == "prompt":
+            widget.setPlaceholderText("https://api.openai.com/v1")
+            self.prompt_url_input = widget
+        else:
+            widget.setPlaceholderText("https://generativelanguage.googleapis.com")
+            self.image_url_input = widget
+        return widget
+    
+    def _create_key_input(self, prefix: str) -> QWidget:
+        """创建API Key输入框"""
+        widget = QTextEdit()
+        widget.setFixedHeight(70)
+        widget.setPlaceholderText("sk-...")
+        if prefix == "prompt":
+            self.prompt_key_input = widget
+        else:
+            self.image_key_input = widget
+        return widget
+    
+    def _create_model_input(self, prefix: str) -> QWidget:
+        """创建模型输入框"""
+        widget = QLineEdit()
+        if prefix == "prompt":
+            widget.setPlaceholderText("gpt-5.1")
+            self.prompt_model_input = widget
+        else:
+            widget.setPlaceholderText("gemini-3-pro-image-preview")
+            self.image_model_input = widget
+        return widget
+    
+    def _build_labeled_widget(self, label_text: str, widget: QWidget) -> QWidget:
+        """创建带标签的输入组件"""
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(8)
+        
+        label = QLabel(label_text)
+        label.setStyleSheet("font-weight: 600; font-size: 13px; color: #262626;")
+        container_layout.addWidget(label)
+        container_layout.addWidget(widget)
+        return container
+    
+    def _load_config(self):
+        """加载现有配置"""
+        config = self.config_manager.load_config()
+        
+        # 提示词生成AI配置 - 只在配置存在且非空时设置文本，否则使用placeholder
+        base_url = config.get("base_url", "")
+        if base_url:
+            self.prompt_url_input.setText(base_url)
+        
+        api_key = config.get("api_key", "")
+        if api_key:
+            self.prompt_key_input.setPlainText(api_key)
+        
+        model = config.get("model", "")
+        if model:
+            self.prompt_model_input.setText(model)
+        
+        # 图片生成AI配置 - 只在配置存在且非空时设置文本，否则使用placeholder
+        gemini_base_url = config.get("gemini_base_url", "")
+        if gemini_base_url:
+            self.image_url_input.setText(gemini_base_url)
+        
+        gemini_api_key = config.get("gemini_api_key", "")
+        if gemini_api_key:
+            self.image_key_input.setPlainText(gemini_api_key)
+        
+        gemini_model = config.get("gemini_model", "")
+        if gemini_model:
+            self.image_model_input.setText(gemini_model)
+    
+    def _save_config(self):
+        """保存配置"""
+        # 提示词生成AI配置 - 直接获取用户输入，不填充默认值
+        prompt_base_url = self.prompt_url_input.text().strip()
+        prompt_api_key = self.prompt_key_input.toPlainText().strip()
+        prompt_model = self.prompt_model_input.text().strip()
+        
+        # 图片生成AI配置 - 直接获取用户输入，不填充默认值
+        image_base_url = self.image_url_input.text().strip()
+        image_api_key = self.image_key_input.toPlainText().strip()
+        image_model = self.image_model_input.text().strip()
+        
+        # 验证必填项
+        if not prompt_api_key and not image_api_key:
+            QMessageBox.warning(self, "提示", "请至少配置一个AI服务的API Key")
+            return
+        
+        # 直接保存用户输入的值（包括空值），不填充默认值
+        config = {
+            "base_url": prompt_base_url,
+            "api_key": prompt_api_key,
+            "model": prompt_model,
+            "gemini_base_url": image_base_url,
+            "gemini_api_key": image_api_key,
+            "gemini_model": image_model,
+        }
+        
+        if self.config_manager.save_config(config):
+            self.config_saved.emit()
+            self.accept()
+        else:
+            QMessageBox.critical(self, "错误", "保存配置失败，请重试")
 
 
 class AIGenerateDialog(QDialog):
@@ -287,32 +547,6 @@ class AIGenerateDialog(QDialog):
         
         header.addWidget(title_container)
         header.addStretch()
-        
-        # 配置状态提示
-        self.config_status = QLabel()
-        self.config_status.setStyleSheet(
-            "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
-            "background-color: #e6f7ff; color: #0958d9;"
-        )
-        self.config_status.hide()  # 隐藏模型URL/模型名显示
-        header.addWidget(self.config_status)
-        self._update_config_status()
-        
-        # 配置按钮
-        self.config_btn = QPushButton("配置")
-        self.config_btn.setStyleSheet("""
-            QPushButton {
-                padding: 6px 16px;
-                background-color: #fafafa;
-                border: 1px solid #d9d9d9;
-            }
-            QPushButton:hover {
-                background-color: #ffffff;
-                border-color: #1890ff;
-            }
-        """)
-        self.config_btn.clicked.connect(self._show_config)
-        header.addWidget(self.config_btn)
         
         main_layout.addLayout(header)
         
@@ -600,39 +834,6 @@ class AIGenerateDialog(QDialog):
         self.selected_images.clear()
         self.image_list.clear()
     
-    def _update_config_status(self):
-        """更新配置状态显示"""
-        if self.ai_service.is_configured():
-            config = self.config_manager.load_config()
-            model = config.get("model", "未知")
-            base_url = config.get("base_url", "")
-            # 简化显示
-            if "openai.com" in base_url:
-                provider = "OpenAI"
-            elif "deepseek" in base_url:
-                provider = "DeepSeek"
-            elif "dashscope" in base_url:
-                provider = "通义千问"
-            else:
-                provider = base_url.split("//")[-1].split("/")[0]
-            self.config_status.setText(f"✓ {provider} / {model}")
-            self.config_status.setStyleSheet(
-                "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
-                "background-color: #f6ffed; color: #52c41a; font-weight: 500;"
-            )
-        else:
-            self.config_status.setText("未配置")
-            self.config_status.setStyleSheet(
-                "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
-                "background-color: #fff7e6; color: #fa8c16; font-weight: 500;"
-            )
-    
-    def _show_config(self):
-        """显示配置对话框"""
-        dialog = AIConfigDialog(self)
-        dialog.config_saved.connect(self._update_config_status)
-        dialog.exec()
-    
     def _on_generate(self):
         """开始生成"""
         if self._is_generating:
@@ -694,7 +895,6 @@ class AIGenerateDialog(QDialog):
     def _set_generating_ui(self, generating: bool):
         """设置生成中的UI状态"""
         self.prompt_input.setReadOnly(generating)
-        self.config_btn.setEnabled(not generating)
         self.add_image_btn.setEnabled(not generating)
         self.remove_image_btn.setEnabled(not generating)
         self.clear_image_btn.setEnabled(not generating)
@@ -909,32 +1109,6 @@ class AIModifyDialog(QDialog):
         
         header.addWidget(title_container)
         header.addStretch()
-        
-        # 配置状态提示
-        self.config_status = QLabel()
-        self.config_status.setStyleSheet(
-            "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
-            "background-color: #e6f7ff; color: #0958d9;"
-        )
-        self.config_status.hide()  # 隐藏模型URL/模型名显示
-        header.addWidget(self.config_status)
-        self._update_config_status()
-        
-        # 配置按钮
-        self.config_btn = QPushButton("配置")
-        self.config_btn.setStyleSheet("""
-            QPushButton {
-                padding: 6px 16px;
-                background-color: #fafafa;
-                border: 1px solid #d9d9d9;
-            }
-            QPushButton:hover {
-                background-color: #ffffff;
-                border-color: #1890ff;
-            }
-        """)
-        self.config_btn.clicked.connect(self._show_config)
-        header.addWidget(self.config_btn)
         
         main_layout.addLayout(header)
         
@@ -1265,39 +1439,6 @@ class AIModifyDialog(QDialog):
         self.selected_images.clear()
         self.image_list.clear()
     
-    def _update_config_status(self):
-        """更新配置状态显示"""
-        if self.ai_service.is_configured():
-            config = self.config_manager.load_config()
-            model = config.get("model", "未知")
-            base_url = config.get("base_url", "")
-            # 简化显示
-            if "openai.com" in base_url:
-                provider = "OpenAI"
-            elif "deepseek" in base_url:
-                provider = "DeepSeek"
-            elif "dashscope" in base_url:
-                provider = "通义千问"
-            else:
-                provider = base_url.split("//")[-1].split("/")[0]
-            self.config_status.setText(f"✓ {provider} / {model}")
-            self.config_status.setStyleSheet(
-                "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
-                "background-color: #f6ffed; color: #52c41a; font-weight: 500;"
-            )
-        else:
-            self.config_status.setText("未配置")
-            self.config_status.setStyleSheet(
-                "font-size: 12px; padding: 4px 12px; border-radius: 12px; "
-                "background-color: #fff7e6; color: #fa8c16; font-weight: 500;"
-            )
-    
-    def _show_config(self):
-        """显示配置对话框"""
-        dialog = AIConfigDialog(self)
-        dialog.config_saved.connect(self._update_config_status)
-        dialog.exec()
-
     def _on_generate(self):
         """开始生成"""
         if self._is_generating:
@@ -1322,14 +1463,11 @@ class AIModifyDialog(QDialog):
         
         # 检查配置
         if not self.ai_service.is_configured():
-            reply = QMessageBox.question(
+            QMessageBox.information(
                 self,
                 "未配置 API",
-                "尚未配置 AI API，是否现在配置？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                "尚未配置 AI API，请在主界面点击「AI配置」按钮进行配置。"
             )
-            if reply == QMessageBox.StandardButton.Yes:
-                self._show_config()
             return
         
         # 检查输入
@@ -1384,7 +1522,6 @@ class AIModifyDialog(QDialog):
     def _set_generating_ui(self, generating: bool):
         """设置生成中的UI状态"""
         self.prompt_input.setReadOnly(generating)
-        self.config_btn.setEnabled(not generating)
         self.add_image_btn.setEnabled(not generating)
         self.remove_image_btn.setEnabled(not generating)
         self.clear_image_btn.setEnabled(not generating)

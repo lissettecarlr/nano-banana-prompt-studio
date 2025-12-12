@@ -1,5 +1,5 @@
 """
-Nano Banana 提示词生成器 - 打包脚本
+Nano Banana 图片生成工具 - 打包脚本
 将应用打包成独立的可执行文件
 
 使用方法:
@@ -344,7 +344,7 @@ def print_tree(path: Path, prefix: str = ""):
 
 def main():
     print("=" * 50)
-    print("Nano Banana 提示词生成器 - 打包工具")
+    print("Nano Banana 生图工具 - 打包工具")
     print("=" * 50)
     
     # 确保在项目根目录运行

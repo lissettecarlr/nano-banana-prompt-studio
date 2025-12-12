@@ -190,15 +190,14 @@ class GeminiImageConfigDialog(QDialog):
         self.base_url_input = QComboBox()
         self.base_url_input.setEditable(True)
         self.base_url_input.addItems([
-            "https://api.kala.love/v1",
             "https://generativelanguage.googleapis.com",
         ])
-        form_layout.addWidget(self._build_labeled_widget("🌐 Base URL", self.base_url_input))
+        form_layout.addWidget(self._build_labeled_widget("Base URL", self.base_url_input))
 
         self.api_key_input = QTextEdit()
         self.api_key_input.setFixedHeight(70)
         self.api_key_input.setPlaceholderText("sk-...")
-        form_layout.addWidget(self._build_labeled_widget("🔑 API Key", self.api_key_input))
+        form_layout.addWidget(self._build_labeled_widget("API Key", self.api_key_input))
 
         self.model_input = QComboBox()
         self.model_input.setEditable(True)
@@ -206,7 +205,7 @@ class GeminiImageConfigDialog(QDialog):
             "gemini-3-pro-image-preview",
             "gemini-2.0-flash-exp",
         ])
-        form_layout.addWidget(self._build_labeled_widget("🤖 模型名称", self.model_input))
+        form_layout.addWidget(self._build_labeled_widget("模型名称", self.model_input))
 
         layout.addWidget(form_frame)
 

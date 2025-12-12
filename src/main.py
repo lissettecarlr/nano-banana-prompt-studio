@@ -1,5 +1,5 @@
 """
-Nano Banana 提示词生成器
+Nano Banana 图片生成工具
 AI绘画提示词可视化编辑工具
 
 使用方法:
@@ -96,7 +96,7 @@ def main():
     setup_light_palette(app)
 
     # 设置应用信息
-    app.setApplicationName("Nano Banana 提示词生成器")
+    app.setApplicationName("Nano Banana 生图工具")
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("NanoBanana")
 
