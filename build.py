@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 
 
-APP_NAME = 'NanoBananaPromptTool'
+APP_NAME = 'NanoBananaPromptStudio'
 
 
 def clean_build_dirs():
@@ -181,12 +181,13 @@ def slim_output(output_dir: Path):
     
     # === 删除大型不必要的 DLL ===
     
-    # opengl32sw.dll - 软件 OpenGL 渲染，现代电脑都有硬件加速 (~20MB)
-    opengl_sw = qt_bin / 'opengl32sw.dll'
-    if opengl_sw.exists():
-        removed_size += opengl_sw.stat().st_size
-        opengl_sw.unlink()
-        print(f"  已删除: opengl32sw.dll (软件渲染)")
+    if sys.platform == 'win32':
+        # opengl32sw.dll - 软件 OpenGL 渲染，现代电脑都有硬件加速 (~20MB)
+        opengl_sw = qt_bin / 'opengl32sw.dll'
+        if opengl_sw.exists():
+            removed_size += opengl_sw.stat().st_size
+            opengl_sw.unlink()
+            print(f"  已删除: opengl32sw.dll (软件渲染)")
     
     # libcrypto / libssl - AI功能需要HTTPS，保留这些库
     # for f in internal_dir.glob('libcrypto*.dll'):
@@ -216,17 +217,18 @@ def slim_output(output_dir: Path):
         print(f"  已删除: Qt 翻译文件")
     
     # 不需要的 Qt DLL（保留 Qt6Network.dll，AI功能需要）
-    for dll_name in ['Qt6Pdf.dll', 'Qt6Svg.dll']:
-        dll_path = qt_bin / dll_name
-        if dll_path.exists():
-            removed_size += dll_path.stat().st_size
-            dll_path.unlink()
-            print(f"  已删除: {dll_name}")
+    if sys.platform == 'win32':
+        for dll_name in ['Qt6Pdf.dll', 'Qt6Svg.dll']:
+            dll_path = qt_bin / dll_name
+            if dll_path.exists():
+                removed_size += dll_path.stat().st_size
+                dll_path.unlink()
+                print(f"  已删除: {dll_name}")
     
     # === 删除不需要的平台插件 ===
     
     platforms_dir = qt_plugins / 'platforms'
-    if platforms_dir.exists():
+    if platforms_dir.exists() and sys.platform == 'win32':
         # 只保留 qwindows.dll，删除其他平台
         for f in platforms_dir.iterdir():
             if f.name not in {'qwindows.dll'}:
@@ -237,7 +239,7 @@ def slim_output(output_dir: Path):
     # === 删除不需要的图像格式插件 ===
     
     imageformats_dir = qt_plugins / 'imageformats'
-    if imageformats_dir.exists():
+    if imageformats_dir.exists() and sys.platform == 'win32':
         keep_formats = {'qjpeg.dll', 'qico.dll', 'qgif.dll', 'qsvg.dll'}
         for f in imageformats_dir.iterdir():
             if f.name not in keep_formats:
