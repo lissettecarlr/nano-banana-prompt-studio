@@ -45,7 +45,7 @@
 
 ### 下载客户端使用
 
-在[Releases](https://github.com/lissettecarlr/nano-banana-prompt-tool/releases)页面下载最新客户端，目前只编译了`windows`版本，解压后双击运行。
+在[Releases](https://github.com/lissettecarlr/nano-banana-prompt-studio/releases)页面下载最新客户端，目前只编译了`windows`版本，解压后双击运行。
 
 
 ### 通过代码运行
@@ -58,8 +58,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/nano_banana_prompt_tool.git
-cd nano_banana_prompt_tool
+git clone https://github.com/your-username/nano-banana-prompt-studio.git
+cd nano-banana-prompt-studio
 
 # 安装依赖
 pip install -r requirements.txt
@@ -74,8 +74,8 @@ python main.py
 
 #### 打包
 ```bash
-python .\build.py 
-``` 
+python build.py
+```
 
 ## 使用说明
 

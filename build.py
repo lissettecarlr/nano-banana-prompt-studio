@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 
 
-APP_NAME = 'NanoBananaPromptTool'
+APP_NAME = 'NanoBananaPromptStudio'
 
 
 def clean_build_dirs():
@@ -65,9 +65,9 @@ def build_exe():
         '--icon=images/logo.png',               # 应用图标
         
         # 添加数据文件（注意：不要打包 ai_config.yaml，里面有密钥）
-        '--add-data=src/config/options.yaml;config',  # 只打包 options.yaml
-        '--add-data=src/presets;presets',             # 预设目录
-        '--add-data=images/logo.png;images',          # logo图片
+        f'--add-data=src/config/options.yaml{os.pathsep}config',  # 只打包 options.yaml
+        f'--add-data=src/presets{os.pathsep}presets',             # 预设目录
+        f'--add-data=images/logo.png{os.pathsep}images',          # logo图片
         
         # 隐藏导入（确保所有模块都被包含）
         '--hidden-import=PyQt6.QtWidgets',
@@ -181,12 +181,13 @@ def slim_output(output_dir: Path):
     
     # === 删除大型不必要的 DLL ===
     
-    # opengl32sw.dll - 软件 OpenGL 渲染，现代电脑都有硬件加速 (~20MB)
-    opengl_sw = qt_bin / 'opengl32sw.dll'
-    if opengl_sw.exists():
-        removed_size += opengl_sw.stat().st_size
-        opengl_sw.unlink()
-        print(f"  已删除: opengl32sw.dll (软件渲染)")
+    if sys.platform == 'win32':
+        # opengl32sw.dll - 软件 OpenGL 渲染，现代电脑都有硬件加速 (~20MB)
+        opengl_sw = qt_bin / 'opengl32sw.dll'
+        if opengl_sw.exists():
+            removed_size += opengl_sw.stat().st_size
+            opengl_sw.unlink()
+            print(f"  已删除: opengl32sw.dll (软件渲染)")
     
     # libcrypto / libssl - AI功能需要HTTPS，保留这些库
     # for f in internal_dir.glob('libcrypto*.dll'):
@@ -216,17 +217,18 @@ def slim_output(output_dir: Path):
         print(f"  已删除: Qt 翻译文件")
     
     # 不需要的 Qt DLL（保留 Qt6Network.dll，AI功能需要）
-    for dll_name in ['Qt6Pdf.dll', 'Qt6Svg.dll']:
-        dll_path = qt_bin / dll_name
-        if dll_path.exists():
-            removed_size += dll_path.stat().st_size
-            dll_path.unlink()
-            print(f"  已删除: {dll_name}")
+    if sys.platform == 'win32':
+        for dll_name in ['Qt6Pdf.dll', 'Qt6Svg.dll']:
+            dll_path = qt_bin / dll_name
+            if dll_path.exists():
+                removed_size += dll_path.stat().st_size
+                dll_path.unlink()
+                print(f"  已删除: {dll_name}")
     
     # === 删除不需要的平台插件 ===
     
     platforms_dir = qt_plugins / 'platforms'
-    if platforms_dir.exists():
+    if platforms_dir.exists() and sys.platform == 'win32':
         # 只保留 qwindows.dll，删除其他平台
         for f in platforms_dir.iterdir():
             if f.name not in {'qwindows.dll'}:
@@ -237,7 +239,7 @@ def slim_output(output_dir: Path):
     # === 删除不需要的图像格式插件 ===
     
     imageformats_dir = qt_plugins / 'imageformats'
-    if imageformats_dir.exists():
+    if imageformats_dir.exists() and sys.platform == 'win32':
         keep_formats = {'qjpeg.dll', 'qico.dll', 'qgif.dll', 'qsvg.dll'}
         for f in imageformats_dir.iterdir():
             if f.name not in keep_formats:
@@ -283,15 +285,26 @@ def create_output():
     
     # 复制打包结果到 output
     dist_app = Path(f'dist/{APP_NAME}')
+    if sys.platform == 'darwin':
+        dist_app = Path(f'dist/{APP_NAME}.app')
+        
     if dist_app.exists():
-        for item in dist_app.iterdir():
-            dest = output_dir / item.name
-            if item.is_dir():
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
+        # macOS .app 是一个文件夹，直接复制整个 .app
+        if sys.platform == 'darwin':
+            dest = output_dir / dist_app.name
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(dist_app, dest)
+        else:
+            # Windows/Linux 复制文件夹内的内容
+            for item in dist_app.iterdir():
+                dest = output_dir / item.name
+                if item.is_dir():
+                    if dest.exists():
+                        shutil.rmtree(dest)
+                    shutil.copytree(item, dest)
+                else:
+                    shutil.copy2(item, dest)
     
     # 确保 config 和 presets 目录存在且可写
     config_dir = output_dir / 'config'
