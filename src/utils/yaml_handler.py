@@ -71,3 +71,13 @@ class YamlHandler:
             options[field_name][idx] = new_value
             self.save_options(options)
 
+    def get_line_art_prompt(self) -> str:
+        """获取角色线稿生成的提示词"""
+        options = self.load_options()
+        return options.get("角色线稿提示词", "")
+
+    def save_line_art_prompt(self, prompt: str):
+        """保存角色线稿生成的提示词"""
+        options = self.load_options()
+        options["角色线稿提示词"] = prompt
+        self.save_options(options)

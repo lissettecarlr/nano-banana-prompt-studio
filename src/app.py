@@ -406,52 +406,7 @@ class PromptGeneratorApp(QMainWindow):
         self._add_field(aesthetic_group, "特殊效果", "特殊效果")
         layout.addWidget(aesthetic_group)
 
-        # ===== 6. 画幅设置（可选） =====
-        aspect_container = QWidget()
-        aspect_layout = QVBoxLayout(aspect_container)
-        aspect_layout.setContentsMargins(0, 0, 0, 0)
-        aspect_layout.setSpacing(0)
-
-        # 启用开关
-        self.aspect_enabled = QCheckBox("启用画幅设置")
-        self.aspect_enabled.setObjectName("aspectToggle")
-        self.aspect_enabled.setChecked(False)  # 默认不启用
-        self.aspect_enabled.stateChanged.connect(self._on_aspect_toggle_changed)
-        aspect_layout.addWidget(self.aspect_enabled)
-
-        # 画幅设置分组
-        self.aspect_group = FieldGroup("画幅设置", color_class="aspect")
-        self.aspect_selector = AspectRatioSelector()
-        self.aspect_selector.value_changed.connect(self._on_field_changed)
-        self.aspect_group.add_widget(self.aspect_selector)
-        self.aspect_group.setVisible(False)  # 默认隐藏
-        aspect_layout.addWidget(self.aspect_group)
-
-        layout.addWidget(aspect_container)
-
-        # ===== 7. 反向提示词（可选） =====
-        negative_container = QWidget()
-        negative_layout = QVBoxLayout(negative_container)
-        negative_layout.setContentsMargins(0, 0, 0, 0)
-        negative_layout.setSpacing(0)
-
-        # 启用开关
-        self.negative_prompt_enabled = QCheckBox("启用反向提示词")
-        self.negative_prompt_enabled.setObjectName("negativePromptToggle")
-        self.negative_prompt_enabled.setChecked(False)  # 默认不启用
-        self.negative_prompt_enabled.stateChanged.connect(self._on_negative_toggle_changed)
-        negative_layout.addWidget(self.negative_prompt_enabled)
-
-        # 反向提示词分组
-        self.negative_group = FieldGroup("反向提示词", color_class="negative")
-        self._add_multi_select_field(self.negative_group, "禁止元素", "禁止元素")
-        self._add_multi_select_field(self.negative_group, "禁止风格", "禁止风格")
-        self.negative_group.setVisible(False)  # 默认隐藏
-        negative_layout.addWidget(self.negative_group)
-
-        layout.addWidget(negative_container)
-
-        # ===== 8. 特别要求（可选） =====
+        # ===== 6. 特别要求（可选） =====
         special_container = QWidget()
         special_layout = QVBoxLayout(special_container)
         special_layout.setContentsMargins(0, 0, 0, 0)
@@ -486,6 +441,86 @@ class PromptGeneratorApp(QMainWindow):
         special_layout.addWidget(self.special_requirement_group)
 
         layout.addWidget(special_container)
+
+        # ===== 7. 角色线稿生成（专用模式） =====
+        line_art_container = QWidget()
+        line_art_layout = QVBoxLayout(line_art_container)
+        line_art_layout.setContentsMargins(0, 0, 0, 0)
+        line_art_layout.setSpacing(0)
+
+        # 角色线稿生成开关 - 使用与其他选项一致的命名格式
+        self.line_art_mode_enabled = QCheckBox("启用角色线稿生成")
+        self.line_art_mode_enabled.setObjectName("lineArtModeToggle")
+        self.line_art_mode_enabled.setChecked(False)  # 默认不启用
+        self.line_art_mode_enabled.setToolTip("启用后将使用专用线稿提示词，并禁用其他表单设置（除额外要求外）")
+        self.line_art_mode_enabled.stateChanged.connect(self._on_line_art_mode_toggle_changed)
+        line_art_layout.addWidget(self.line_art_mode_enabled)
+
+        # 添加说明提示
+        self.line_art_hint = QLabel("启用后，除特别要求外，其他提示词被禁用。")
+        self.line_art_hint.setStyleSheet("color: #999999; font-size: 12px; margin-left: 24px; margin-bottom: 4px;")
+        line_art_layout.addWidget(self.line_art_hint)
+
+        # 线稿提示词分组
+        self.line_art_group = FieldGroup("线稿提示词", color_class="special")
+        
+        # 提示词编辑框
+        self.line_art_prompt_input = QTextEdit()
+        self.line_art_prompt_input.setPlaceholderText("请输入角色线稿生成的提示词...")
+        self.line_art_prompt_input.setMinimumHeight(120)
+        self.line_art_prompt_input.setMaximumHeight(200)
+        self.line_art_prompt_input.setStyleSheet("""
+            QTextEdit {
+                padding: 8px;
+                border: 1px solid #d9d9d9;
+                border-radius: 4px;
+                background-color: white;
+                font-size: 12px;
+            }
+            QTextEdit:focus {
+                border-color: #40a9ff;
+            }
+        """)
+        self.line_art_group.add_widget(self.line_art_prompt_input)
+        
+        # 保存按钮容器
+        save_btn_container = QWidget()
+        save_btn_layout = QHBoxLayout(save_btn_container)
+        save_btn_layout.setContentsMargins(0, 8, 0, 0)
+        save_btn_layout.addStretch()
+        
+        self.save_line_art_prompt_btn = QPushButton("保存提示词")
+        self.save_line_art_prompt_btn.setObjectName("secondaryButton")
+        self.save_line_art_prompt_btn.clicked.connect(self._save_line_art_prompt)
+        save_btn_layout.addWidget(self.save_line_art_prompt_btn)
+        
+        self.line_art_group.add_widget(save_btn_container)
+        self.line_art_group.setVisible(False)  # 默认隐藏
+        line_art_layout.addWidget(self.line_art_group)
+
+        layout.addWidget(line_art_container)
+
+        # ===== 8. 反向提示词（可选） =====
+        negative_container = QWidget()
+        negative_layout = QVBoxLayout(negative_container)
+        negative_layout.setContentsMargins(0, 0, 0, 0)
+        negative_layout.setSpacing(0)
+
+        # 启用开关
+        self.negative_prompt_enabled = QCheckBox("启用反向提示词")
+        self.negative_prompt_enabled.setObjectName("negativePromptToggle")
+        self.negative_prompt_enabled.setChecked(False)  # 默认不启用
+        self.negative_prompt_enabled.stateChanged.connect(self._on_negative_toggle_changed)
+        negative_layout.addWidget(self.negative_prompt_enabled)
+
+        # 反向提示词分组
+        self.negative_group = FieldGroup("反向提示词", color_class="negative")
+        self._add_multi_select_field(self.negative_group, "禁止元素", "禁止元素")
+        self._add_multi_select_field(self.negative_group, "禁止风格", "禁止风格")
+        self.negative_group.setVisible(False)  # 默认隐藏
+        negative_layout.addWidget(self.negative_group)
+
+        layout.addWidget(negative_container)
 
         layout.addStretch()
         scroll.setWidget(container)
@@ -750,12 +785,6 @@ class PromptGeneratorApp(QMainWindow):
         """字段值改变时自动更新预览"""
         self._generate_json()
 
-    def _on_aspect_toggle_changed(self, state: int):
-        """画幅设置开关切换"""
-        enabled = state == 2  # Qt.CheckState.Checked = 2
-        self.aspect_group.setVisible(enabled)
-        self._generate_json()
-
     def _on_negative_toggle_changed(self, state: int):
         """反向提示词开关切换"""
         enabled = state == 2  # Qt.CheckState.Checked = 2
@@ -767,6 +796,53 @@ class PromptGeneratorApp(QMainWindow):
         enabled = state == 2  # Qt.CheckState.Checked = 2
         self.special_requirement_group.setVisible(enabled)
         # 特别要求不纳入JSON预览，所以不需要调用 _generate_json()
+
+    def _on_line_art_mode_toggle_changed(self, state: int):
+        """角色线稿模式开关切换"""
+        enabled = state == 2  # Qt.CheckState.Checked = 2
+        
+        # 显示/隐藏线稿提示词分组
+        self.line_art_group.setVisible(enabled)
+        
+        # 如果启用，加载当前的线稿提示词到编辑框
+        if enabled:
+            current_prompt = self.yaml_handler.get_line_art_prompt()
+            self.line_art_prompt_input.setText(current_prompt)
+        
+        # 需要禁用/启用的控件列表（不包括特别要求）
+        controls_to_toggle = [
+            self.negative_prompt_enabled,
+        ]
+        
+        # 表单字段控件
+        for widget in self.field_widgets.values():
+            widget.setEnabled(not enabled)
+        
+        # 其他开关控件
+        for ctrl in controls_to_toggle:
+            ctrl.setEnabled(not enabled)
+        
+        # 反向提示词分组
+        self.negative_group.setEnabled(not enabled)
+        
+        # 如果启用线稿模式，收起其他已展开的可选分组（除特别要求外）
+        if enabled:
+            self.negative_prompt_enabled.setChecked(False)
+        
+        self._generate_json()
+
+    def _save_line_art_prompt(self):
+        """保存线稿提示词到配置文件"""
+        prompt_text = self.line_art_prompt_input.toPlainText().strip()
+        if not prompt_text:
+            QMessageBox.warning(self, "提示", "提示词不能为空")
+            return
+            
+        try:
+            self.yaml_handler.save_line_art_prompt(prompt_text)
+            self._show_toast("提示词保存成功")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"保存失败: {str(e)}")
 
     def _generate_json(self):
         """生成JSON提示词"""
@@ -844,15 +920,6 @@ class PromptGeneratorApp(QMainWindow):
                 },
             },
         }
-
-        # 仅当启用画幅设置时才添加
-        if self.aspect_enabled.isChecked():
-            aspect_values = self.aspect_selector.get_values()
-            data["画幅设置"] = {
-                "比例": aspect_values["比例"],
-                "推荐分辨率": aspect_values["分辨率"],
-                "用途": aspect_values["用途"],
-            }
 
         # 仅当启用反向提示词时才添加
         if self.negative_prompt_enabled.isChecked():
@@ -1212,18 +1279,34 @@ class PromptGeneratorApp(QMainWindow):
             QMessageBox.information(self, "提示", "已有任务进行中，请稍候")
             return
 
-        prompt_data = self._collect_form_data()
-        prompt_text = json.dumps(prompt_data, ensure_ascii=False, indent=2)
-        
-        if not prompt_text or prompt_text.strip() == "{}":
-            QMessageBox.warning(self, "提示", "当前提示词为空，请先填写表单内容")
-            return
+        # 检查是否启用了角色线稿模式
+        if self.line_art_mode_enabled.isChecked():
+            # 使用UI中的线稿提示词
+            line_art_prompt = self.line_art_prompt_input.toPlainText().strip()
+            if not line_art_prompt:
+                QMessageBox.warning(self, "提示", "线稿提示词不能为空")
+                return
+            prompt_text = line_art_prompt
+            
+            # 如果启用了特别要求，追加到线稿提示词后面
+            if self.special_requirement_enabled.isChecked():
+                special_text = self.special_requirement_input.toPlainText().strip()
+                if special_text:
+                    prompt_text = prompt_text + "\n\n额外要求：" + special_text
+        else:
+            # 正常模式：使用表单数据
+            prompt_data = self._collect_form_data()
+            prompt_text = json.dumps(prompt_data, ensure_ascii=False, indent=2)
+            
+            if not prompt_text or prompt_text.strip() == "{}":
+                QMessageBox.warning(self, "提示", "当前提示词为空，请先填写表单内容")
+                return
 
-        # 如果启用了特别要求，追加到prompt后面
-        if self.special_requirement_enabled.isChecked():
-            special_text = self.special_requirement_input.toPlainText().strip()
-            if special_text:
-                prompt_text = prompt_text + "\n\n特别要求：" + special_text
+            # 如果启用了特别要求，追加到prompt后面
+            if self.special_requirement_enabled.isChecked():
+                special_text = self.special_requirement_input.toPlainText().strip()
+                if special_text:
+                    prompt_text = prompt_text + "\n\n特别要求：" + special_text
 
         if not self.config_manager.get_gemini_api_key():
             reply = QMessageBox.question(
@@ -1245,7 +1328,12 @@ class PromptGeneratorApp(QMainWindow):
         self.preview_area.setText("正在生成，请稍候...")
         self.preview_area.setPixmap(QPixmap())
         self.save_image_btn.setEnabled(False)
-        self._set_image_status("提交到 Gemini 服务", "#1890ff")
+        
+        # 根据模式显示不同的状态信息
+        if self.line_art_mode_enabled.isChecked():
+            self._set_image_status("提交到 Gemini 服务（角色线稿模式）", "#1890ff")
+        else:
+            self._set_image_status("提交到 Gemini 服务", "#1890ff")
         # 禁用点击预览功能
         self._enable_image_preview(False)
 
