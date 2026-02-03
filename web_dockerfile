@@ -1,0 +1,31 @@
+# 使用 Python 3.10 slim 版本作为基础镜像
+FROM python:3.10-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 设置环境变量
+# 防止 Python 生成 .pyc 文件
+ENV PYTHONDONTWRITEBYTECODE=1
+# 确保 Python 输出不被缓冲
+ENV PYTHONUNBUFFERED=1
+# 添加 src 到 PYTHONPATH，确保可以导入 utils 和 components
+ENV PYTHONPATH=/app/src
+
+# 复制依赖文件
+COPY src/web/requirements.txt /app/requirements.txt
+
+# 安装依赖
+# 使用阿里云镜像源加速（可选，根据网络环境决定，这里使用默认源但加上 --no-cache-dir）
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制项目文件
+# 我们需要复制整个 src 目录，因为 web/app.py 依赖于 src 下的其他模块
+COPY src /app/src
+
+
+# 暴露端口
+EXPOSE 5000
+
+# 启动命令
+CMD ["python", "src/web/app.py"]

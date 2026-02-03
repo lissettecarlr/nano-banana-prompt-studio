@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nano Banana - AI 生图工具</title>
+    <meta name="description" content="AI绘画提示词生成与生图工具">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <!-- 主容器 -->
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <h1>Nano Banana</h1>
+                </div>
+            </div>
+
+            <!-- 预设管理 (Moved to Main Tabs) -->
+            <!-- 生成设置 (Moved from Main) -->
+            <div class="section">
+                <h2 class="section-title">生成设置</h2>
+                <div class="gen-controls">
+                    <div class="form-group">
+                        <label>宽高比</label>
+                        <select id="genAspectRatio" class="select-input">
+                            <option value="1:1">1:1 (正方形)</option>
+                            <option value="2:3">2:3 (人像)</option>
+                            <option value="3:2">3:2 (风景)</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:3">4:3</option>
+                            <option value="9:16">9:16 (手机)</option>
+                            <option value="16:9">16:9 (屏幕)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>尺寸</label>
+                        <select id="genImageSize" class="select-input">
+                            <option value="1K">1K</option>
+                            <option value="2K" selected>2K</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+
+                    <!-- 参考图片 -->
+                    <div class="form-group">
+                        <label>参考图片 (可选)</label>
+                        <div class="image-upload-area"
+                            style="padding: 10px; border: 1px dashed #ccc; border-radius: 8px;">
+                            <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+                            <button id="uploadImageBtn" class="btn btn-secondary btn-sm" style="width: 100%;">📤
+                                上传参考图</button>
+                            <div id="imagePreview" class="image-preview"
+                                style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 生成按钮 -->
+                    <button id="generateImageBtn" class="btn btn-primary sidebar-btn">
+                        生成图片
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部工具栏 -->
+            <div class="tools-bar">
+                <span class="toolbar-title">详细配置与预览</span>
+                <div class="sub-tools">
+                    <button id="configBtn" class="btn btn-secondary btn-sm">设置</button>
+                    <button id="resetFormBtn" class="btn btn-secondary btn-sm">清空</button>
+                    <button id="aiGenerateOpenBtn" class="btn btn-secondary btn-sm">AI 生成提示词</button>
+                    <button id="aiModifyOpenBtn" class="btn btn-secondary btn-sm">AI 修改提示词</button>
+                </div>
+            </div>
+
+            <!-- 配置 Tabs -->
+            <div class="tabs-nav">
+                <button class="tab-btn" data-tab="presets">预设管理</button>
+                <button class="tab-btn active" data-tab="basic">基础设置</button>
+                <button class="tab-btn" data-tab="scene">场景描绘</button>
+                <button class="tab-btn" data-tab="subject">主体特征</button>
+                <button class="tab-btn" data-tab="camera">相机镜头</button>
+                <button class="tab-btn" data-tab="aesthetic">审美控制</button>
+            </div>
+
+            <!-- Tab 内容区 (Moved from Sidebar) -->
+            <div class="tab-content-container">
+
+                <!-- 预设管理 -->
+                <div id="tab-presets" class="tab-panel">
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>选择与管理预设</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <select id="presetSelect" class="select-input" style="flex: 1;">
+                                    <option value="">选择预设...</option>
+                                </select>
+                                <button id="savePresetBtn" class="btn btn-secondary" title="保存当前配置为新预设">
+                                    保存预设
+                                </button>
+                                <button id="deletePresetBtn" class="btn btn-danger" title="删除当前选中的预设">
+                                    删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 基础设置 -->
+                <div id="tab-basic" class="tab-panel active">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="styleMode">风格模式</label>
+                            <input type="text" id="styleMode" class="text-input" placeholder="例如：高保真二次元插画">
+                        </div>
+                        <div class="form-group">
+                            <label for="atmosphere">画面气质</label>
+                            <input type="text" id="atmosphere" class="text-input" placeholder="例如：清透, 治愈">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 场景设置 -->
+                <div id="tab-scene" class="tab-panel">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="location">地点设定</label>
+                            <textarea id="location" class="textarea-input" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="lighting">光线</label>
+                            <input type="text" id="lighting" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="weather">天气氛围</label>
+                            <input type="text" id="weather" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="background">背景描述</label>
+                            <textarea id="background" class="textarea-input" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 主体设置 -->
+                <div id="tab-subject" class="tab-panel">
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label for="description">整体描述</label>
+                            <textarea id="description" class="textarea-input" rows="2"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="bodyShape">身材</label>
+                            <input type="text" id="bodyShape" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="face">面部</label>
+                            <input type="text" id="face" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="hair">头发</label>
+                            <input type="text" id="hair" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="eyes">眼睛</label>
+                            <input type="text" id="eyes" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="emotion">情绪</label>
+                            <input type="text" id="emotion" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="action">动作</label>
+                            <textarea id="action" class="textarea-input" rows="2"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="clothing">穿着</label>
+                            <input type="text" id="clothing" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="accessories">配饰</label>
+                            <input type="text" id="accessories" class="text-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 相机设置 -->
+                <div id="tab-camera" class="tab-panel">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="angle">机位角度</label>
+                            <input type="text" id="angle" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="composition">构图</label>
+                            <input type="text" id="composition" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="lensCharacteristics">镜头特性</label>
+                            <input type="text" id="lensCharacteristics" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="sensorQuality">传感器画质</label>
+                            <input type="text" id="sensorQuality" class="text-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 审美控制 -->
+                <div id="tab-aesthetic" class="tab-panel">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="intent">呈现意图</label>
+                            <input type="text" id="intent" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="materialRealism">材质真实度</label>
+                            <textarea id="materialRealism" class="textarea-input" rows="2"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="overallTone">整体色调</label>
+                            <input type="text" id="overallTone" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="contrast">对比度</label>
+                            <input type="text" id="contrast" class="text-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="specialEffects">特殊效果</label>
+                            <input type="text" id="specialEffects" class="text-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Area Split -->
+            <div class="preview-area-row">
+                <!-- Wrapper for JSON Preview -->
+                <div class="preview-pane">
+                    <h3>
+                        <span>提示词预览 (JSON)</span>
+                        <button id="copyJsonBtn" class="btn btn-ghost btn-sm" style="padding: 2px 8px;">📋 复制</button>
+                    </h3>
+                    <textarea id="jsonPreviewText" class="textarea-input" readonly
+                        style="font-family: monospace; font-size: 12px; background: #fafafa; resize: none;"></textarea>
+                </div>
+
+                <!-- Wrapper for Result Preview -->
+                <div class="preview-pane">
+                    <h3>生成结果</h3>
+                    <div id="resultPreview" class="result-preview" style="min-height: 0; background-color: #eee;">
+                        <div class="empty-state">
+                            <p style="color: #94a3b8;">预览区域</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- AI 对话框 -->
+    <div id="aiModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; width: 90%;">
+            <div class="modal-header">
+                <h3 id="aiModalTitle">AI 助手</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" style="display: flex; gap: 20px; height: 60vh; overflow: hidden;">
+                <!-- Left Panel: Input & Images -->
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;">
+                    <div class="form-group" style="flex: 0 0 auto;">
+                        <label id="aiModalLabel">描述你的需求</label>
+                        <textarea id="aiPromptInput" class="textarea-input" rows="5"
+                            placeholder="例如：一个在雨中哭泣的少女..."></textarea>
+                    </div>
+
+                    <!-- AI Local Image Upload -->
+                    <div class="form-group" style="flex: 1; display: flex; flex-direction: column; min-height: 150px;">
+                        <label>参考图片 (仅本次AI使用)</label>
+                        <div class="image-upload-area"
+                            style="flex: 1; border: 1px dashed #ccc; border-radius: 8px; padding: 10px; overflow-y: auto; min-height: 100px;">
+                            <input type="file" id="aiImageInput" accept="image/*" multiple style="display: none;">
+                            <button id="aiUploadImageBtn" class="btn btn-secondary btn-sm"
+                                style="width: 100%; margin-bottom: 10px;">📤 上传参考图</button>
+                            <div id="aiImagePreview" class="image-preview"
+                                style="display: flex; gap: 10px; flex-wrap: wrap;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Response Preview -->
+                <div style="flex: 1; display: flex; flex-direction: column; overflow-y: hidden;">
+                    <label>AI 回复预览</label>
+                    <textarea id="aiResponsePreview" class="textarea-input"
+                        style="flex: 1; font-family: monospace; font-size: 12px; background: #fafafa; resize: none;"
+                        readonly></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="aiStatusText" style="margin-right: auto; color: #666; font-size: 12px;"></span>
+                <button id="aiModalCancelBtn" class="btn btn-secondary">关闭</button>
+                <button id="aiModalStopBtn" class="btn btn-danger" style="display: none;">⏹ 停止</button>
+                <button id="aiModalExecuteBtn" class="btn btn-primary">生成提示词</button>
+                <button id="aiModalApplyBtn" class="btn btn-success" style="display: none;">应用结果</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置对话框 -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>全局配置</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>提示词生成模型 (OpenAI Compatible)</h4>
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="configBaseUrl" class="text-input">
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="configApiKey" class="text-input">
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" id="configModel" class="text-input">
+                </div>
+
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+                <h4>图片生成模型 (Gemini)</h4>
+                <div class="form-group">
+                    <label>Gemini Base URL</label>
+                    <input type="text" id="configGeminiBaseUrl" class="text-input"
+                        placeholder="https://generativelanguage.googleapis.com">
+                </div>
+                <div class="form-group">
+                    <label>Gemini API Key</label>
+                    <input type="password" id="configGeminiApiKey" class="text-input">
+                </div>
+                <div class="form-group">
+                    <label>Gemini Model</label>
+                    <input type="text" id="configGeminiModel" class="text-input"
+                        placeholder="gemini-3-pro-image-preview">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveConfigBtn" class="btn btn-primary">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="imagePreviewModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 95vw; max-height: 95vh; width: auto; background: transparent; box-shadow: none; padding: 0;">
+            <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+                 <img id="fullImagePreview" src="" style="max-width: 100%; max-height: 85vh; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); object-fit: contain;">
+                 <div style="margin-top: 15px; display: flex; gap: 10px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;">
+                     <button id="downloadFullImageBtn" class="btn btn-primary">⬇ 保存原图</button>
+                     <button onclick="document.getElementById('imagePreviewModal').classList.remove('active')" class="btn btn-secondary" style="background: #444; color: white; border: none;">✕ 关闭</button>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+    <script src="/static/script.js"></script>
+</body>
+
+</html>

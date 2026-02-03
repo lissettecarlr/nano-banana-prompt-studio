@@ -1,0 +1,7 @@
+flask==3.0.0
+flask-cors==4.0.0
+pyyaml==6.0.1
+openai
+google-genai==1.52.0
+Pillow>=10.0.0
+loguru>=0.7.0
