@@ -262,7 +262,7 @@ def generate_prompt():
             })
         
         # 系统提示词
-        from utils.ai_service import SYSTEM_PROMPT
+        from utils.ai_prompts import SYSTEM_PROMPT
         
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
