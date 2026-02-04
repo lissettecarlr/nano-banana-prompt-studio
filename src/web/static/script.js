@@ -47,6 +47,21 @@ const elements = {
     contrast: document.getElementById('contrast'),
     specialEffects: document.getElementById('specialEffects'),
 
+    // 高级设置
+    specialRequirementEnabled: document.getElementById('specialRequirementEnabled'),
+    specialRequirementGroup: document.getElementById('specialRequirementGroup'),
+    specialRequirementInput: document.getElementById('specialRequirementInput'),
+
+    lineArtModeEnabled: document.getElementById('lineArtModeEnabled'),
+    lineArtGroup: document.getElementById('lineArtGroup'),
+    lineArtPromptInput: document.getElementById('lineArtPromptInput'),
+    saveLineArtPromptBtn: document.getElementById('saveLineArtPromptBtn'),
+
+    negativePromptEnabled: document.getElementById('negativePromptEnabled'),
+    negativePromptGroup: document.getElementById('negativePromptGroup'),
+    negativeElementsContainer: document.getElementById('negativeElementsContainer'),
+    negativeStylesContainer: document.getElementById('negativeStylesContainer'),
+
     // 预设
     presetSelect: document.getElementById('presetSelect'),
     savePresetBtn: document.getElementById('savePresetBtn'),
@@ -90,6 +105,7 @@ const elements = {
     aiModalExecuteBtn: document.getElementById('aiModalExecuteBtn'),
     aiModalStopBtn: document.getElementById('aiModalStopBtn'),
     aiModalApplyBtn: document.getElementById('aiModalApplyBtn'),
+    aiDiffContainer: document.getElementById('aiDiffContainer'),
 
     // 配置对话框
     configModal: document.getElementById('configModal'),
@@ -131,7 +147,17 @@ function getFormData() {
     const materialRealismValue = elements.materialRealism.value.trim();
     const materialRealismArray = materialRealismValue ? stringToArray(materialRealismValue) : [];
 
-    return {
+    // Helper to get checked values from container
+    function getCheckedValues(container) {
+        const checked = [];
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            if (cb.checked) checked.push(cb.value);
+        });
+        return checked;
+    }
+
+    const data = {
         "风格模式": elements.styleMode.value,
         "画面气质": elements.atmosphere.value,
         "场景": {
@@ -181,6 +207,32 @@ function getFormData() {
             }
         }
     };
+
+    // Add Special Requirements if enabled
+    if (elements.specialRequirementEnabled.checked) {
+        data["特别要求"] = elements.specialRequirementInput.value;
+    }
+
+    // Add Line Art if enabled
+    if (elements.lineArtModeEnabled.checked) {
+        data["角色线稿生成"] = {
+            "启用": true,
+            "提示词": elements.lineArtPromptInput.value
+        };
+    }
+
+    // Add Negative Prompt if enabled
+    if (elements.negativePromptEnabled.checked) {
+        const negativeElements = getCheckedValues(elements.negativeElementsContainer);
+        const negativeStyles = getCheckedValues(elements.negativeStylesContainer);
+        
+        data["反向提示词"] = {
+            "禁止元素": negativeElements,
+            "禁止风格": negativeStyles
+        };
+    }
+
+    return data;
 }
 
 function setFormData(data) {
@@ -241,6 +293,59 @@ function setFormData(data) {
     elements.contrast.value = getValue(data, "审美控制", "色彩风格", "对比度");
     elements.specialEffects.value = getValue(data, "审美控制", "色彩风格", "特殊效果");
 
+    // Special Requirements
+    const specialReq = getValue(data, "特别要求");
+    if (specialReq) {
+        elements.specialRequirementEnabled.checked = true;
+        elements.specialRequirementInput.value = specialReq;
+        elements.specialRequirementGroup.style.display = 'block';
+    } else {
+        elements.specialRequirementEnabled.checked = false;
+        elements.specialRequirementInput.value = '';
+        elements.specialRequirementGroup.style.display = 'none';
+    }
+
+    // Line Art
+    const lineArt = getValue(data, "角色线稿生成");
+    if (lineArt && lineArt["启用"]) {
+        elements.lineArtModeEnabled.checked = true;
+        elements.lineArtPromptInput.value = lineArt["提示词"] || '';
+        elements.lineArtGroup.style.display = 'block';
+        // Trigger event to disable other fields (will add listener later)
+        elements.lineArtModeEnabled.dispatchEvent(new Event('change'));
+    } else {
+        elements.lineArtModeEnabled.checked = false;
+        elements.lineArtPromptInput.value = '';
+        elements.lineArtGroup.style.display = 'none';
+        elements.lineArtModeEnabled.dispatchEvent(new Event('change'));
+    }
+
+    // Negative Prompt
+    const negativePrompt = getValue(data, "反向提示词");
+    
+    function setCheckedValues(container, values) {
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = values.includes(cb.value);
+        });
+    }
+
+    if (negativePrompt) {
+        elements.negativePromptEnabled.checked = true;
+        elements.negativePromptGroup.style.display = 'flex';
+        
+        const negativeElements = negativePrompt["禁止元素"] || [];
+        const negativeStyles = negativePrompt["禁止风格"] || [];
+        
+        setCheckedValues(elements.negativeElementsContainer, negativeElements);
+        setCheckedValues(elements.negativeStylesContainer, negativeStyles);
+    } else {
+        elements.negativePromptEnabled.checked = false;
+        elements.negativePromptGroup.style.display = 'none';
+        setCheckedValues(elements.negativeElementsContainer, []);
+        setCheckedValues(elements.negativeStylesContainer, []);
+    }
+
     // Trigger update for preview
     updateJsonPreview();
 }
@@ -249,16 +354,54 @@ function clearForm() {
     Object.values(elements).forEach(el => {
         if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
             if (!el.id.startsWith('gen') && !el.id.startsWith('config') && el.id !== 'presetSelect') {
-                el.value = '';
+                if (el.type === 'checkbox') {
+                    el.checked = false;
+                    el.dispatchEvent(new Event('change'));
+                } else {
+                    el.value = '';
+                }
             }
         }
     });
+    // Clear negative prompt checkboxes
+    [elements.negativeElementsContainer, elements.negativeStylesContainer].forEach(container => {
+        if (container) {
+            container.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+    });
+
     updateJsonPreview();
 }
 
 function updateJsonPreview() {
-    const data = getFormData();
-    elements.jsonPreviewText.value = JSON.stringify(data, null, 2);
+    let finalOutput = "";
+
+    if (elements.lineArtModeEnabled.checked) {
+        // Line Art Mode: Use raw prompt + special requirements
+        let prompt = elements.lineArtPromptInput.value.trim();
+        if (elements.specialRequirementEnabled.checked) {
+            const special = elements.specialRequirementInput.value.trim();
+            if (special) {
+                prompt += "\n\n额外要求：" + special;
+            }
+        }
+        finalOutput = prompt;
+    } else {
+        // Normal Mode: Use JSON + special requirements
+        const data = getFormData();
+        let jsonStr = JSON.stringify(data, null, 2);
+        
+        if (elements.specialRequirementEnabled.checked) {
+            const special = elements.specialRequirementInput.value.trim();
+            if (special) {
+                // Append special requirements outside of JSON
+                jsonStr += "\n\n特别要求：" + special;
+            }
+        }
+        finalOutput = jsonStr;
+    }
+    
+    elements.jsonPreviewText.value = finalOutput;
 }
 
 // ========================================
@@ -382,6 +525,118 @@ function renderUploadedImages() {
 let currentAiMode = null; // 'generate' or 'modify'
 let aiUploadedImages = []; // Local images for AI modal
 let aiAbortController = null;
+let latestDiffChanges = []; // Store diff changes
+
+// ========================================
+// Diff Utils
+// ========================================
+function isObject(item) {
+    return (item && typeof item === 'object' && !Array.isArray(item));
+}
+
+function diffJson(obj1, obj2, path = []) {
+    let changes = [];
+    
+    // Union of keys
+    const keys1 = isObject(obj1) ? Object.keys(obj1) : [];
+    const keys2 = isObject(obj2) ? Object.keys(obj2) : [];
+    const allKeys = new Set([...keys1, ...keys2]);
+
+    for (const key of allKeys) {
+        const val1 = isObject(obj1) ? obj1[key] : undefined;
+        const val2 = isObject(obj2) ? obj2[key] : undefined;
+        const currentPath = [...path, key];
+
+        if (isObject(val1) && isObject(val2)) {
+            changes = changes.concat(diffJson(val1, val2, currentPath));
+        } else if (Array.isArray(val1) && Array.isArray(val2)) {
+            // Simple array comparison
+            if (JSON.stringify(val1) !== JSON.stringify(val2)) {
+                changes.push({
+                    path: currentPath,
+                    pathStr: currentPath.join(' > '),
+                    oldValue: val1,
+                    newValue: val2
+                });
+            }
+        } else if (val1 !== val2) {
+             // Ignore if both are empty/null/undefined equivalent
+             const v1Empty = val1 === null || val1 === undefined || val1 === '';
+             const v2Empty = val2 === null || val2 === undefined || val2 === '';
+             if (v1Empty && v2Empty) continue;
+
+             changes.push({
+                path: currentPath,
+                pathStr: currentPath.join(' > '),
+                oldValue: val1 === undefined ? '(空)' : val1,
+                newValue: val2 === undefined ? '(删除)' : val2
+             });
+        }
+    }
+    return changes;
+}
+
+function renderDiff(changes) {
+    elements.aiDiffContainer.innerHTML = '';
+    latestDiffChanges = changes;
+    
+    if (changes.length === 0) {
+        elements.aiDiffContainer.innerHTML = '<div class="empty-state">未检测到更改</div>';
+        return;
+    }
+
+    changes.forEach((change, idx) => {
+        const item = document.createElement('div');
+        item.className = 'diff-item';
+        
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.alignItems = 'center';
+        header.style.marginBottom = '5px';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.id = `diff-check-${idx}`;
+        checkbox.dataset.idx = idx;
+        
+        const label = document.createElement('label');
+        label.htmlFor = `diff-check-${idx}`;
+        label.textContent = change.pathStr;
+        label.style.marginLeft = '8px';
+        label.style.fontWeight = 'bold';
+        label.style.cursor = 'pointer';
+
+        header.appendChild(checkbox);
+        header.appendChild(label);
+
+        const content = document.createElement('div');
+        content.style.marginLeft = '24px';
+        content.style.fontSize = '13px';
+
+        // Format values for display
+        const formatVal = (v) => {
+            if (Array.isArray(v)) return JSON.stringify(v);
+            return v;
+        };
+
+        const oldDiv = document.createElement('div');
+        oldDiv.className = 'diff-old';
+        oldDiv.textContent = `旧: ${formatVal(change.oldValue)}`;
+        
+        const newDiv = document.createElement('div');
+        newDiv.className = 'diff-new';
+        newDiv.textContent = `新: ${formatVal(change.newValue)}`;
+
+        content.appendChild(oldDiv);
+        content.appendChild(newDiv);
+
+        item.appendChild(header);
+        item.appendChild(content);
+        
+        elements.aiDiffContainer.appendChild(item);
+    });
+}
 
 function handleAiImageUpload(e) {
     const files = Array.from(e.target.files);
@@ -452,6 +707,12 @@ function openAiModal(mode) {
     elements.aiStatusText.textContent = '';
     aiUploadedImages = [];
     renderAiUploadedImages();
+    latestDiffChanges = [];
+
+    // Reset View
+    elements.aiDiffContainer.style.display = 'none';
+    elements.aiResponsePreview.style.display = 'block';
+    elements.aiDiffContainer.innerHTML = '';
     
     // Reset Buttons
     elements.aiModalExecuteBtn.style.display = 'inline-block';
@@ -527,6 +788,41 @@ async function handleAiExecute() {
                         elements.aiModalStopBtn.style.display = 'none';
                         elements.aiModalApplyBtn.style.display = 'inline-block';
                         elements.aiModalExecuteBtn.style.display = 'inline-block';
+
+                        // Logic for Modify Mode: Show Diff
+                        if (currentAiMode === 'modify') {
+                            try {
+                                let jsonText = fullContent;
+                                // Try to extract JSON from Markdown
+                                const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
+                                if (jsonMatch) {
+                                    jsonText = jsonMatch[1];
+                                } else {
+                                     const firstBrace = jsonText.indexOf('{');
+                                     const lastBrace = jsonText.lastIndexOf('}');
+                                     if (firstBrace !== -1 && lastBrace !== -1) {
+                                         jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+                                     }
+                                }
+                                
+                                const newData = JSON.parse(jsonText);
+                                const currentData = getFormData();
+                                const changes = diffJson(currentData, newData);
+                                
+                                renderDiff(changes);
+                                
+                                // Switch View
+                                elements.aiResponsePreview.style.display = 'none';
+                                elements.aiDiffContainer.style.display = 'block';
+                                
+                            } catch (e) {
+                                console.error('Diff calculation failed:', e);
+                                showToast('对比生成失败，显示原始结果', 'warning');
+                                // Fallback to raw view
+                                elements.aiResponsePreview.style.display = 'block';
+                                elements.aiDiffContainer.style.display = 'none';
+                            }
+                        }
                     } else {
                         try {
                             const parsed = JSON.parse(dataStr);
@@ -567,6 +863,44 @@ function handleAiStop() {
 
 function applyAiResult() {
     try {
+        // If in Modify Mode and Diff View is active
+        if (currentAiMode === 'modify' && elements.aiDiffContainer.style.display !== 'none') {
+            const checkboxes = elements.aiDiffContainer.querySelectorAll('input[type="checkbox"]');
+            const data = getFormData(); // Start with current data
+            
+            let appliedCount = 0;
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    const idx = parseInt(cb.dataset.idx);
+                    const change = latestDiffChanges[idx];
+                    if (change) {
+                        // Apply change to data object
+                        // Helper to set deep value
+                        let current = data;
+                        for (let i = 0; i < change.path.length - 1; i++) {
+                            const key = change.path[i];
+                            if (!current[key]) current[key] = {};
+                            current = current[key];
+                        }
+                        const lastKey = change.path[change.path.length - 1];
+                        
+                        if (change.newValue === undefined) {
+                            delete current[lastKey];
+                        } else {
+                            current[lastKey] = change.newValue;
+                        }
+                        appliedCount++;
+                    }
+                }
+            });
+            
+            setFormData(data);
+            showToast(`已应用 ${appliedCount} 项更改`, 'success');
+            elements.aiModal.classList.remove('active');
+            return;
+        }
+
+        // Fallback / Generate Mode Logic
         const jsonText = elements.aiResponsePreview.value;
         // Attempt to find JSON if wrapped in markdown
         let cleanJson = jsonText;
@@ -602,7 +936,7 @@ async function generateImage() {
     }
 
     elements.generateImageBtn.disabled = true;
-    elements.generateImageBtn.innerHTML = '⏳ 生成中... (Generating)';
+    elements.generateImageBtn.innerHTML = '⏳ 生成中...';
     elements.resultPreview.innerHTML = '<div class="empty-state"><p>生成中...</p></div>';
 
     try {
@@ -789,6 +1123,10 @@ function init() {
 
     // Load presets logic
     loadPresets();
+    
+    // Init Advanced Settings
+    initAdvancedSettings();
+
     elements.presetSelect.addEventListener('change', async () => {
         const name = elements.presetSelect.value;
         if (name) {
@@ -824,6 +1162,121 @@ function init() {
         showToast('删除成功');
         loadPresets();
     });
+}
+
+async function initAdvancedSettings() {
+    // 1. Toggle Special Requirements
+    elements.specialRequirementEnabled.addEventListener('change', () => {
+        elements.specialRequirementGroup.style.display = elements.specialRequirementEnabled.checked ? 'block' : 'none';
+        updateJsonPreview();
+    });
+    elements.specialRequirementInput.addEventListener('input', updateJsonPreview);
+
+    // 2. Toggle Line Art Mode
+    elements.lineArtModeEnabled.addEventListener('change', () => {
+        const enabled = elements.lineArtModeEnabled.checked;
+        elements.lineArtGroup.style.display = enabled ? 'block' : 'none';
+        
+        // Disable other inputs
+        const allInputs = document.querySelectorAll('.app-container input, .app-container textarea, .app-container select');
+        allInputs.forEach(el => {
+            // Skip control buttons/checkboxes and special req
+            if (el.id === 'lineArtModeEnabled' || 
+                el.id === 'lineArtPromptInput' || 
+                el.id === 'specialRequirementEnabled' || 
+                el.id === 'specialRequirementInput' ||
+                el.id.startsWith('gen') || // Generation controls
+                el.id.startsWith('config') || // Config controls
+                el.id === 'presetSelect' // Preset select
+            ) {
+                return;
+            }
+            // Skip buttons
+            if (el.type === 'button' || el.type === 'submit') return;
+
+            el.disabled = enabled;
+        });
+
+        if (enabled) {
+            // Load saved prompt if empty
+            if (!elements.lineArtPromptInput.value) {
+                loadLineArtPrompt();
+            }
+        }
+        updateJsonPreview();
+    });
+    elements.lineArtPromptInput.addEventListener('input', updateJsonPreview);
+
+    // Save Line Art Prompt
+    elements.saveLineArtPromptBtn.addEventListener('click', async () => {
+        const prompt = elements.lineArtPromptInput.value;
+        if (!prompt) return;
+        try {
+            await fetch('/api/line-art-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+            showToast('线稿提示词保存成功', 'success');
+        } catch (e) {
+            showToast('保存失败: ' + e, 'error');
+        }
+    });
+
+    async function loadLineArtPrompt() {
+        try {
+            const res = await fetch('/api/line-art-prompt');
+            const data = await res.json();
+            if (data.prompt) {
+                elements.lineArtPromptInput.value = data.prompt;
+                updateJsonPreview();
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    // 3. Toggle Negative Prompt
+    elements.negativePromptEnabled.addEventListener('change', () => {
+        elements.negativePromptGroup.style.display = elements.negativePromptEnabled.checked ? 'flex' : 'none';
+        updateJsonPreview();
+    });
+
+    // Load Negative Prompt Options
+    try {
+        const res = await fetch('/api/options');
+        const options = await res.json();
+        
+        const renderCheckboxes = (container, items) => {
+            container.innerHTML = '';
+            if (!items || items.length === 0) {
+                container.innerHTML = '<span style="color: #999;">无选项</span>';
+                return;
+            }
+            items.forEach(item => {
+                const label = document.createElement('label');
+                label.style.display = 'flex';
+                label.style.alignItems = 'center';
+                label.style.marginRight = '10px';
+                label.style.cursor = 'pointer';
+                label.style.fontSize = '12px';
+                
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = item;
+                cb.style.marginRight = '4px';
+                cb.addEventListener('change', updateJsonPreview);
+                
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(item));
+                container.appendChild(label);
+            });
+        };
+
+        renderCheckboxes(elements.negativeElementsContainer, options['禁止元素']);
+        renderCheckboxes(elements.negativeStylesContainer, options['禁止风格']);
+
+    } catch (e) {
+        console.error('Failed to load options for negative prompts', e);
+    }
 }
 
 async function loadPresets() {

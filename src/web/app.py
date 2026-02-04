@@ -121,6 +121,30 @@ def add_option(field_name):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/line-art-prompt', methods=['GET'])
+def get_line_art_prompt():
+    """获取线稿提示词"""
+    try:
+        prompt = yaml_handler.get_line_art_prompt()
+        return jsonify({'prompt': prompt})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/line-art-prompt', methods=['POST'])
+def save_line_art_prompt():
+    """保存线稿提示词"""
+    try:
+        data = request.json
+        prompt = data.get('prompt')
+        if prompt is not None:
+            yaml_handler.save_line_art_prompt(prompt)
+            return jsonify({'success': True})
+        return jsonify({'error': '提示词不能为空'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/presets', methods=['GET'])
 def get_presets():
     """获取所有预设"""

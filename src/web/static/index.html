@@ -71,7 +71,7 @@
         <main class="main-content">
             <!-- 顶部工具栏 -->
             <div class="tools-bar">
-                <span class="toolbar-title">详细配置与预览</span>
+                <span class="toolbar-title">画面元素配置</span>
                 <div class="sub-tools">
                     <button id="configBtn" class="btn btn-secondary btn-sm">设置</button>
                     <button id="resetFormBtn" class="btn btn-secondary btn-sm">清空</button>
@@ -88,6 +88,7 @@
                 <button class="tab-btn" data-tab="subject">主体特征</button>
                 <button class="tab-btn" data-tab="camera">相机镜头</button>
                 <button class="tab-btn" data-tab="aesthetic">审美控制</button>
+                <button class="tab-btn" data-tab="advanced">高级设置</button>
             </div>
 
             <!-- Tab 内容区 (Moved from Sidebar) -->
@@ -238,6 +239,63 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 高级设置 -->
+                <div id="tab-advanced" class="tab-panel">
+                    <div class="form-grid" style="display: flex; flex-direction: column; gap: 20px;">
+                        
+                        <!-- 特别要求 -->
+                        <div class="advanced-section" style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: #f9fafb;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <input type="checkbox" id="specialRequirementEnabled" style="margin-right: 8px;">
+                                <label for="specialRequirementEnabled" style="font-weight: 600; margin-bottom: 0;">启用特别要求</label>
+                            </div>
+                            <div id="specialRequirementGroup" style="display: none;">
+                                <textarea id="specialRequirementInput" class="textarea-input" rows="3" placeholder="请输入额外的特别要求，这些内容不会纳入AI提示词生成和修改，只在生成图片时补充..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- 角色线稿生成 -->
+                        <div class="advanced-section" style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: #f9fafb;">
+                            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                                <input type="checkbox" id="lineArtModeEnabled" style="margin-right: 8px;">
+                                <label for="lineArtModeEnabled" style="font-weight: 600; margin-bottom: 0;">启用角色线稿生成</label>
+                            </div>
+                            <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px; margin-left: 24px;">启用后，除特别要求外，其他提示词被禁用。</p>
+                            <div id="lineArtGroup" style="display: none;">
+                                <textarea id="lineArtPromptInput" class="textarea-input" rows="5" placeholder="请输入角色线稿生成的提示词..."></textarea>
+                                <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                                    <button id="saveLineArtPromptBtn" class="btn btn-secondary btn-sm">保存提示词</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 反向提示词 -->
+                        <div class="advanced-section" style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: #f9fafb;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <input type="checkbox" id="negativePromptEnabled" style="margin-right: 8px;">
+                                <label for="negativePromptEnabled" style="font-weight: 600; margin-bottom: 0;">启用反向提示词</label>
+                            </div>
+                            <div id="negativePromptGroup" style="display: none; display: flex; flex-direction: column; gap: 15px;">
+                                <div class="form-group">
+                                    <label>禁止元素</label>
+                                    <div id="negativeElementsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: white; border: 1px solid #d1d5db; border-radius: 4px; max-height: 150px; overflow-y: auto;">
+                                        <!-- Options will be loaded here -->
+                                        <span style="color: #999;">加载中...</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>禁止风格</label>
+                                    <div id="negativeStylesContainer" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: white; border: 1px solid #d1d5db; border-radius: 4px; max-height: 150px; overflow-y: auto;">
+                                        <!-- Options will be loaded here -->
+                                        <span style="color: #999;">加载中...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
             </div>
 
             <!-- Preview Area Split -->
@@ -301,6 +359,11 @@
                     <textarea id="aiResponsePreview" class="textarea-input"
                         style="flex: 1; font-family: monospace; font-size: 12px; background: #fafafa; resize: none;"
                         readonly></textarea>
+                    
+                    <!-- Diff View Container -->
+                    <div id="aiDiffContainer" class="diff-container">
+                        <!-- Diff items will be injected here -->
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -308,7 +371,7 @@
                 <button id="aiModalCancelBtn" class="btn btn-secondary">关闭</button>
                 <button id="aiModalStopBtn" class="btn btn-danger" style="display: none;">⏹ 停止</button>
                 <button id="aiModalExecuteBtn" class="btn btn-primary">生成提示词</button>
-                <button id="aiModalApplyBtn" class="btn btn-success" style="display: none;">应用结果</button>
+                <button id="aiModalApplyBtn" class="btn btn-primary" style="display: none;">应用结果</button>
             </div>
         </div>
     </div>
