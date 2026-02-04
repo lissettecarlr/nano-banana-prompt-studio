@@ -456,7 +456,7 @@ def modify_prompt():
             user_message_content = text_content
         
         # 系统提示词
-        from utils.ai_service import MODIFY_SYSTEM_PROMPT
+        from utils.ai_prompts import MODIFY_SYSTEM_PROMPT
         
         messages = [
             {"role": "system", "content": MODIFY_SYSTEM_PROMPT},
