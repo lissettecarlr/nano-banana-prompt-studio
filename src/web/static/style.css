@@ -3,26 +3,26 @@
    ======================================== */
 :root {
     /* 主题色 */
-    --primary-color: #667eea;
-    --primary-hover: #5568d3;
-    --primary-light: #f0f3ff;
-    --accent-color: #f093fb;
-    --accent-hover: #d77fe8;
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-light: #eff6ff;
+    --accent-color: #0ea5e9;
+    --accent-hover: #0284c7;
 
     /* 中性色 */
     --bg-primary: #ffffff;
-    --bg-secondary: #f8f9fa;
-    --bg-tertiary: #f0f2f5;
-    --text-primary: #1a202c;
-    --text-secondary: #4a5568;
-    --text-tertiary: #718096;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #94a3b8;
     --border-color: #e2e8f0;
 
     /* 状态色 */
-    --success-color: #48bb78;
-    --warning-color: #ed8936;
-    --danger-color: #f56565;
-    --info-color: #4299e1;
+    --success-color: #22c55e;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --info-color: #3b82f6;
 
     /* 阴影 */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -113,8 +113,8 @@ body {
 .sidebar-header {
     padding: var(--spacing-lg);
     border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
-    color: white;
+    background: #1e293b;
+    color: #f1f5f9;
 }
 
 .logo {
@@ -245,7 +245,7 @@ body {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+    background: var(--primary-color);
     color: white;
     box-shadow: var(--shadow-sm);
 }
@@ -260,7 +260,7 @@ body {
 }
 
 .btn-accent {
-    background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+    background: var(--accent-color);
     color: white;
     box-shadow: var(--shadow-sm);
 }
@@ -285,7 +285,7 @@ body {
 }
 
 .btn-danger:hover:not(:disabled) {
-    background: #e53e3e;
+    background: #dc2626;
 }
 
 .btn-ghost {
@@ -806,7 +806,7 @@ body {
 .diff-container {
     flex: 1;
     overflow-y: auto;
-    background: #fafafa;
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: var(--spacing-sm);
@@ -854,14 +854,14 @@ body {
 .diff-old {
     color: var(--danger-color);
     text-decoration: line-through;
-    background: #fff1f0;
+    background: #fef2f2;
     padding: 2px 4px;
     border-radius: 2px;
 }
 
 .diff-new {
     color: var(--success-color);
-    background: #f6ffed;
+    background: #f0fdf4;
     padding: 2px 4px;
     border-radius: 2px;
 }
@@ -873,7 +873,7 @@ body {
 
 .diff-item.unchecked {
     opacity: 0.6;
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
 }
 
 /* Layout Updates */
@@ -896,10 +896,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    background: white;
+    background: var(--bg-primary);
     padding: 24px;
     border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-md);
 }
 
 .gen-controls {
@@ -919,7 +919,7 @@ body {
     max-width: 400px;
     height: 56px;
     font-size: 18px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary-color);
     border: none;
     color: white;
     border-radius: 28px;
@@ -933,7 +933,7 @@ body {
 
 #generateImageBtn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
 }
 
 #generateImageBtn:disabled {
@@ -944,8 +944,8 @@ body {
 
 .result-preview {
     min-height: 400px;
-    background: #f8fafc;
-    border: 2px dashed #e2e8f0;
+    background: var(--bg-secondary);
+    border: 2px dashed var(--border-color);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -970,7 +970,7 @@ body {
 .toolbar-title {
     font-weight: 600;
     margin-right: auto;
-    color: #334155;
+    color: var(--text-primary);
 }
 
 /* ========================================
@@ -1141,4 +1141,34 @@ body {
 
 .checkbox-container input[type="checkbox"] {
     cursor: pointer;
+}
+
+/* ========================================
+   Preset Suggest Select (for textarea fields)
+   ======================================== */
+.preset-suggest-select {
+    width: 100%;
+    padding: 4px 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%23718096' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 24px;
+}
+
+.preset-suggest-select:hover {
+    border-color: var(--primary-color);
+}
+
+.preset-suggest-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-light);
 }

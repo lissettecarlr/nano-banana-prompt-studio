@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nano Banana - AI 生图工具</title>
+    <title>KUON的生图工具</title>
     <meta name="description" content="AI绘画提示词生成与生图工具">
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -16,7 +16,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <h1>Nano Banana</h1>
+                    <h1>KUON的生图工具</h1>
                 </div>
             </div>
 
@@ -50,7 +50,7 @@
                     <div class="form-group">
                         <label>参考图片 (可选)</label>
                         <div class="image-upload-area"
-                            style="padding: 10px; border: 1px dashed #ccc; border-radius: 8px;">
+                            style="padding: 10px; border: 1px dashed var(--border-color); border-radius: 8px;">
                             <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
                             <button id="uploadImageBtn" class="btn btn-secondary btn-sm" style="width: 100%;">📤
                                 上传参考图</button>
@@ -245,7 +245,7 @@
                     <div class="form-grid" style="display: flex; flex-direction: column; gap: 20px;">
                         
                         <!-- 特别要求 -->
-                        <div class="advanced-section" style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: #f9fafb;">
+                        <div class="advanced-section">
                             <div style="display: flex; align-items: center; margin-bottom: 10px;">
                                 <input type="checkbox" id="specialRequirementEnabled" style="margin-right: 8px;">
                                 <label for="specialRequirementEnabled" style="font-weight: 600; margin-bottom: 0;">启用特别要求</label>
@@ -256,12 +256,12 @@
                         </div>
 
                         <!-- 角色线稿生成 -->
-                        <div class="advanced-section" style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: #f9fafb;">
+                        <div class="advanced-section">
                             <div style="display: flex; align-items: center; margin-bottom: 5px;">
                                 <input type="checkbox" id="lineArtModeEnabled" style="margin-right: 8px;">
                                 <label for="lineArtModeEnabled" style="font-weight: 600; margin-bottom: 0;">启用角色线稿生成</label>
                             </div>
-                            <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px; margin-left: 24px;">启用后，除特别要求外，其他提示词被禁用。</p>
+                            <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 10px; margin-left: 24px;">启用后，除特别要求外，其他提示词被禁用。</p>
                             <div id="lineArtGroup" style="display: none;">
                                 <textarea id="lineArtPromptInput" class="textarea-input" rows="5" placeholder="请输入角色线稿生成的提示词..."></textarea>
                                 <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
@@ -271,7 +271,7 @@
                         </div>
 
                         <!-- 反向提示词 -->
-                        <div class="advanced-section" style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: #f9fafb;">
+                        <div class="advanced-section">
                             <div style="display: flex; align-items: center; margin-bottom: 10px;">
                                 <input type="checkbox" id="negativePromptEnabled" style="margin-right: 8px;">
                                 <label for="negativePromptEnabled" style="font-weight: 600; margin-bottom: 0;">启用反向提示词</label>
@@ -279,16 +279,16 @@
                             <div id="negativePromptGroup" style="display: none; display: flex; flex-direction: column; gap: 15px;">
                                 <div class="form-group">
                                     <label>禁止元素</label>
-                                    <div id="negativeElementsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: white; border: 1px solid #d1d5db; border-radius: 4px; max-height: 150px; overflow-y: auto;">
+                                    <div id="negativeElementsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; max-height: 150px; overflow-y: auto;">
                                         <!-- Options will be loaded here -->
-                                        <span style="color: #999;">加载中...</span>
+                                        <span style="color: var(--text-tertiary);">加载中...</span>
                                     </div>
                                 </div>
                                 <div class="form-group">
                                     <label>禁止风格</label>
-                                    <div id="negativeStylesContainer" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: white; border: 1px solid #d1d5db; border-radius: 4px; max-height: 150px; overflow-y: auto;">
+                                    <div id="negativeStylesContainer" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; max-height: 150px; overflow-y: auto;">
                                         <!-- Options will be loaded here -->
-                                        <span style="color: #999;">加载中...</span>
+                                        <span style="color: var(--text-tertiary);">加载中...</span>
                                     </div>
                                 </div>
                             </div>
@@ -307,15 +307,15 @@
                         <button id="copyJsonBtn" class="btn btn-ghost btn-sm" style="padding: 2px 8px;">📋 复制</button>
                     </h3>
                     <textarea id="jsonPreviewText" class="textarea-input" readonly
-                        style="font-family: monospace; font-size: 12px; background: #fafafa; resize: none;"></textarea>
+                        style="font-family: monospace; font-size: 12px; background: var(--bg-secondary); resize: none;"></textarea>
                 </div>
 
                 <!-- Wrapper for Result Preview -->
                 <div class="preview-pane">
                     <h3>生成结果</h3>
-                    <div id="resultPreview" class="result-preview" style="min-height: 0; background-color: #eee;">
+                    <div id="resultPreview" class="result-preview" style="min-height: 0;">
                         <div class="empty-state">
-                            <p style="color: #94a3b8;">预览区域</p>
+                            <p style="color: var(--text-tertiary);">预览区域</p>
                         </div>
                     </div>
                 </div>
@@ -343,7 +343,7 @@
                     <div class="form-group" style="flex: 1; display: flex; flex-direction: column; min-height: 150px;">
                         <label>参考图片 (仅本次AI使用)</label>
                         <div class="image-upload-area"
-                            style="flex: 1; border: 1px dashed #ccc; border-radius: 8px; padding: 10px; overflow-y: auto; min-height: 100px;">
+                            style="flex: 1; border: 1px dashed var(--border-color); border-radius: 8px; padding: 10px; overflow-y: auto; min-height: 100px;">
                             <input type="file" id="aiImageInput" accept="image/*" multiple style="display: none;">
                             <button id="aiUploadImageBtn" class="btn btn-secondary btn-sm"
                                 style="width: 100%; margin-bottom: 10px;">📤 上传参考图</button>
@@ -367,7 +367,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <span id="aiStatusText" style="margin-right: auto; color: #666; font-size: 12px;"></span>
+                <span id="aiStatusText" style="margin-right: auto; color: var(--text-tertiary); font-size: 12px;"></span>
                 <button id="aiModalCancelBtn" class="btn btn-secondary">关闭</button>
                 <button id="aiModalStopBtn" class="btn btn-danger" style="display: none;">⏹ 停止</button>
                 <button id="aiModalExecuteBtn" class="btn btn-primary">生成提示词</button>
@@ -398,7 +398,7 @@
                     <input type="text" id="configModel" class="text-input">
                 </div>
 
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);">
 
                 <h4>图片生成模型 (Gemini)</h4>
                 <div class="form-group">
@@ -429,7 +429,7 @@
                  <img id="fullImagePreview" src="" style="max-width: 100%; max-height: 85vh; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); object-fit: contain;">
                  <div style="margin-top: 15px; display: flex; gap: 10px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;">
                      <button id="downloadFullImageBtn" class="btn btn-primary">⬇ 保存原图</button>
-                     <button onclick="document.getElementById('imagePreviewModal').classList.remove('active')" class="btn btn-secondary" style="background: #444; color: white; border: none;">✕ 关闭</button>
+                     <button onclick="document.getElementById('imagePreviewModal').classList.remove('active')" class="btn btn-secondary" style="background: rgba(255,255,255,0.15); color: white; border: none;">关闭</button>
                  </div>
             </div>
         </div>

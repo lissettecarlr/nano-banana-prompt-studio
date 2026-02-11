@@ -491,10 +491,13 @@ function renderUploadedImages() {
 
         const img = document.createElement('img');
         img.src = data;
-        // img.style.width = '80px'; // Removed to fix size mismatch
-        // img.style.height = '80px'; // Removed to fix size mismatch
         img.style.objectFit = 'cover';
         img.style.borderRadius = '4px';
+        img.style.cursor = 'pointer';
+        img.onclick = (e) => {
+            e.stopPropagation();
+            openImagePreview(data);
+        };
 
         const btn = document.createElement('button');
         btn.innerHTML = '×';
@@ -669,10 +672,13 @@ function renderAiUploadedImages() {
 
         const img = document.createElement('img');
         img.src = data;
-        // img.style.width = '80px'; // Removed to fix size mismatch
-        // img.style.height = '80px'; // Removed to fix size mismatch
         img.style.objectFit = 'cover';
         img.style.borderRadius = '4px';
+        img.style.cursor = 'pointer';
+        img.onclick = (e) => {
+            e.stopPropagation();
+            openImagePreview(data);
+        };
 
         const btn = document.createElement('button');
         btn.innerHTML = '×';
@@ -1123,7 +1129,8 @@ function init() {
 
     // Load presets logic
     loadPresets();
-    
+    updateFieldSuggestions();
+
     // Init Advanced Settings
     initAdvancedSettings();
 
@@ -1151,6 +1158,7 @@ function init() {
         });
         showToast('保存成功');
         loadPresets();
+        updateFieldSuggestions();
     });
 
     // Delete Preset
@@ -1161,6 +1169,7 @@ function init() {
         await fetch(`/api/presets/${name}`, { method: 'DELETE' });
         showToast('删除成功');
         loadPresets();
+        updateFieldSuggestions();
     });
 }
 
@@ -1248,7 +1257,7 @@ async function initAdvancedSettings() {
         const renderCheckboxes = (container, items) => {
             container.innerHTML = '';
             if (!items || items.length === 0) {
-                container.innerHTML = '<span style="color: #999;">无选项</span>';
+                container.innerHTML = '<span style="color: var(--text-tertiary);">无选项</span>';
                 return;
             }
             items.forEach(item => {
@@ -1291,6 +1300,125 @@ async function loadPresets() {
             elements.presetSelect.appendChild(opt);
         });
     } catch (e) { console.error(e); }
+}
+
+// ========================================
+// Field Suggestions from Presets
+// ========================================
+const fieldPresetPaths = {
+    styleMode: ["风格模式"],
+    atmosphere: ["画面气质"],
+    location: ["场景", "环境", "地点设定"],
+    lighting: ["场景", "环境", "光线"],
+    weather: ["场景", "环境", "天气氛围"],
+    description: ["场景", "主体", "整体描述"],
+    bodyShape: ["场景", "主体", "外形特征", "身材"],
+    face: ["场景", "主体", "外形特征", "面部"],
+    hair: ["场景", "主体", "外形特征", "头发"],
+    eyes: ["场景", "主体", "外形特征", "眼睛"],
+    emotion: ["场景", "主体", "表情与动作", "情绪"],
+    action: ["场景", "主体", "表情与动作", "动作"],
+    clothing: ["场景", "主体", "服装", "穿着"],
+    accessories: ["场景", "主体", "配饰"],
+    background: ["场景", "背景", "描述"],
+    angle: ["相机", "机位角度"],
+    composition: ["相机", "构图"],
+    lensCharacteristics: ["相机", "镜头特性"],
+    sensorQuality: ["相机", "传感器画质"],
+    intent: ["审美控制", "呈现意图"],
+    materialRealism: ["审美控制", "材质真实度"],
+    overallTone: ["审美控制", "色彩风格", "整体色调"],
+    contrast: ["审美控制", "色彩风格", "对比度"],
+    specialEffects: ["审美控制", "色彩风格", "特殊效果"],
+};
+
+function getNestedValue(obj, path) {
+    let current = obj;
+    for (const key of path) {
+        if (current === null || current === undefined) return undefined;
+        current = current[key];
+    }
+    return current;
+}
+
+async function updateFieldSuggestions() {
+    try {
+        const res = await fetch('/api/presets');
+        const list = await res.json();
+        const presetDataList = await Promise.all(
+            list.map(async (p) => {
+                try {
+                    const r = await fetch(`/api/presets/${p.name}`);
+                    return await r.json();
+                } catch (e) { return null; }
+            })
+        );
+
+        for (const [fieldId, path] of Object.entries(fieldPresetPaths)) {
+            const values = new Set();
+            presetDataList.forEach(data => {
+                if (!data) return;
+                const val = getNestedValue(data, path);
+                if (val !== null && val !== undefined) {
+                    const str = Array.isArray(val) ? val.join(', ') : String(val);
+                    if (str.trim()) values.add(str.trim());
+                }
+            });
+
+            const el = document.getElementById(fieldId);
+            if (!el) continue;
+
+            if (el.tagName === 'INPUT') {
+                const datalistId = `dl-${fieldId}`;
+                let datalist = document.getElementById(datalistId);
+                if (values.size === 0) {
+                    if (datalist) { datalist.remove(); el.removeAttribute('list'); }
+                    continue;
+                }
+                if (!datalist) {
+                    datalist = document.createElement('datalist');
+                    datalist.id = datalistId;
+                    document.body.appendChild(datalist);
+                }
+                datalist.innerHTML = '';
+                values.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    datalist.appendChild(opt);
+                });
+                el.setAttribute('list', datalistId);
+            } else if (el.tagName === 'TEXTAREA') {
+                const selectId = `ps-${fieldId}`;
+                let select = document.getElementById(selectId);
+                if (values.size === 0) {
+                    if (select) select.remove();
+                    continue;
+                }
+                if (!select) {
+                    select = document.createElement('select');
+                    select.id = selectId;
+                    select.className = 'preset-suggest-select';
+                    select.addEventListener('change', () => {
+                        if (select.value) {
+                            el.value = select.value;
+                            el.dispatchEvent(new Event('input'));
+                            select.value = '';
+                        }
+                    });
+                    el.parentNode.insertBefore(select, el.nextSibling);
+                }
+                select.innerHTML = '<option value="">从预设选择...</option>';
+                values.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v.length > 50 ? v.substring(0, 50) + '...' : v;
+                    select.appendChild(opt);
+                });
+            }
+        }
+    } catch (e) {
+        console.error('Failed to update field suggestions:', e);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
