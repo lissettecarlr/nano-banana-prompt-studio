@@ -73,7 +73,10 @@ const elements = {
     configBtn: document.getElementById('configBtn'),
     resetFormBtn: document.getElementById('resetFormBtn'),
 
-    // JSON 预览
+    // JSON 预览（可折叠）
+    jsonPreviewPane: document.getElementById('jsonPreviewPane'),
+    jsonPreviewToggleBtn: document.getElementById('jsonPreviewToggleBtn'),
+    jsonPreviewHideBtn: document.getElementById('jsonPreviewHideBtn'),
     jsonPreviewText: document.getElementById('jsonPreviewText'),
     copyJsonBtn: document.getElementById('copyJsonBtn'),
 
@@ -967,16 +970,13 @@ async function generateImage() {
                 <div class="generated-result-container" style="position: relative; text-align: center; width: 100%;">
                     <div style="position: relative; display: inline-block; max-width: 100%;">
                         <img src="${data.image}" alt="Generated Image" 
-                             style="cursor: zoom-in; max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s;"
+                             style="cursor: zoom-in; max-width: 100%; max-height: 300px; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s;"
                              onmouseover="this.style.transform='scale(1.01)'"
                              onmouseout="this.style.transform='scale(1)'"
                              onclick="openImagePreview('${data.image}')">
                         <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 4px;">
                             <span style="color: white; font-size: 12px;">🔍 点击放大</span>
                         </div>
-                    </div>
-                    <div style="margin-top: 15px;">
-                        <button onclick="downloadImage('${data.image}')" class="btn btn-primary" style="width: 100%;">⬇ 保存图片</button>
                     </div>
                 </div>
             `;
@@ -1099,6 +1099,15 @@ function init() {
         navigator.clipboard.writeText(elements.jsonPreviewText.value).then(() => {
             showToast('已复制 JSON');
         });
+    });
+
+    // JSON 预览 显示/隐藏（通过在 preview-area-row 上切换 json-hidden）
+    const previewAreaRow = document.getElementById('previewAreaRow');
+    elements.jsonPreviewToggleBtn.addEventListener('click', () => {
+        previewAreaRow.classList.remove('json-hidden');
+    });
+    elements.jsonPreviewHideBtn.addEventListener('click', () => {
+        previewAreaRow.classList.add('json-hidden');
     });
 
     // Generate Image Button

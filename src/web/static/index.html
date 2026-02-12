@@ -299,20 +299,26 @@
             </div>
 
             <!-- Preview Area Split -->
-            <div class="preview-area-row">
-                <!-- Wrapper for JSON Preview -->
-                <div class="preview-pane">
+            <div id="previewAreaRow" class="preview-area-row json-hidden">
+                <!-- JSON Preview (默认隐藏) -->
+                <div id="jsonPreviewPane" class="preview-pane">
                     <h3>
                         <span>提示词预览 (JSON)</span>
-                        <button id="copyJsonBtn" class="btn btn-ghost btn-sm" style="padding: 2px 8px;">📋 复制</button>
+                        <span>
+                            <button id="copyJsonBtn" class="btn btn-ghost btn-sm" style="padding: 2px 8px;">📋 复制</button>
+                            <button type="button" id="jsonPreviewHideBtn" class="btn btn-ghost btn-sm" style="padding: 2px 8px;">🔽 隐藏</button>
+                        </span>
                     </h3>
                     <textarea id="jsonPreviewText" class="textarea-input" readonly
                         style="font-family: monospace; font-size: 12px; background: var(--bg-secondary); resize: none;"></textarea>
                 </div>
 
-                <!-- Wrapper for Result Preview -->
+                <!-- Result Preview -->
                 <div class="preview-pane">
-                    <h3>生成结果</h3>
+                    <h3>
+                        <span>生成结果</span>
+                        <button type="button" id="jsonPreviewToggleBtn" class="btn btn-ghost btn-sm" style="padding: 2px 8px;">📄 显示JSON预览</button>
+                    </h3>
                     <div id="resultPreview" class="result-preview" style="min-height: 0;">
                         <div class="empty-state">
                             <p style="color: var(--text-tertiary);">预览区域</p>
