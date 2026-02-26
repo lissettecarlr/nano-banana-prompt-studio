@@ -938,6 +938,12 @@ function applyAiResult() {
 // Image Generation
 // ========================================
 async function generateImage() {
+    // 移动端点击生成后自动关闭侧边栏
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+
     const prompt = elements.jsonPreviewText.value;
     if (!prompt || prompt.length < 5) {
         showToast('请先配置提示词', 'warning');
@@ -1049,6 +1055,21 @@ function downloadImage(dataUrl) {
 // ========================================
 function init() {
     loadConfig();
+
+    // === 移动端侧边栏切换 ===
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    if (sidebarToggleBtn && sidebar && sidebarOverlay) {
+        sidebarToggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+            sidebarOverlay.classList.toggle('active');
+        });
+        sidebarOverlay.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            sidebarOverlay.classList.remove('active');
+        });
+    }
 
     // Event Listeners
     elements.configBtn.addEventListener('click', openConfigModal);

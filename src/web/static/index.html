@@ -12,8 +12,10 @@
 <body>
     <!-- 主容器 -->
     <div class="app-container">
+        <!-- 侧边栏遮罩层 (移动端) -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <!-- 侧边栏 -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
                     <h1>KUON的生图工具</h1>
@@ -71,6 +73,13 @@
         <main class="main-content">
             <!-- 顶部工具栏 -->
             <div class="tools-bar">
+                <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="生成设置">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
                 <span class="toolbar-title">画面元素配置</span>
                 <div class="sub-tools">
                     <button id="configBtn" class="btn btn-secondary btn-sm">设置</button>
