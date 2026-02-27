@@ -406,12 +406,16 @@ class UnifiedAIConfigDialog(QDialog):
     
     def _create_model_input(self, prefix: str) -> QWidget:
         """创建模型输入框"""
-        widget = QLineEdit()
         if prefix == "prompt":
+            widget = QLineEdit()
             widget.setPlaceholderText("gpt-5.1")
             self.prompt_model_input = widget
         else:
-            widget.setPlaceholderText("gemini-3-pro-image-preview")
+            widget = QComboBox()
+            widget.addItems([
+                "gemini-3-pro-image-preview",
+                "gemini-3.1-flash-image-preview",
+            ])
             self.image_model_input = widget
         return widget
     
@@ -454,9 +458,9 @@ class UnifiedAIConfigDialog(QDialog):
         if gemini_api_key:
             self.image_key_input.setPlainText(gemini_api_key)
         
-        gemini_model = config.get("gemini_model", "")
-        if gemini_model:
-            self.image_model_input.setText(gemini_model)
+        gemini_model = config.get("gemini_model", "gemini-3-pro-image-preview")
+        index = self.image_model_input.findText(gemini_model)
+        self.image_model_input.setCurrentIndex(index if index >= 0 else 0)
     
     def _save_config(self):
         """保存配置"""
@@ -468,7 +472,7 @@ class UnifiedAIConfigDialog(QDialog):
         # 图片生成AI配置 - 直接获取用户输入，不填充默认值
         image_base_url = self.image_url_input.text().strip()
         image_api_key = self.image_key_input.toPlainText().strip()
-        image_model = self.image_model_input.text().strip()
+        image_model = self.image_model_input.currentText().strip()
         
         # 验证必填项
         if not prompt_api_key and not image_api_key:

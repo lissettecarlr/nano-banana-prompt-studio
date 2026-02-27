@@ -200,10 +200,9 @@ class GeminiImageConfigDialog(QDialog):
         form_layout.addWidget(self._build_labeled_widget("API Key", self.api_key_input))
 
         self.model_input = QComboBox()
-        self.model_input.setEditable(True)
         self.model_input.addItems([
             "gemini-3-pro-image-preview",
-            "gemini-2.0-flash-exp",
+            "gemini-3.1-flash-image-preview",
         ])
         form_layout.addWidget(self._build_labeled_widget("模型名称", self.model_input))
 
@@ -241,7 +240,9 @@ class GeminiImageConfigDialog(QDialog):
         config = self.config_manager.get_gemini_config()
         self.base_url_input.setCurrentText(config.get("base_url", ""))
         self.api_key_input.setPlainText(config.get("api_key", ""))
-        self.model_input.setCurrentText(config.get("model", ""))
+        saved_model = config.get("model", "gemini-3-pro-image-preview")
+        index = self.model_input.findText(saved_model)
+        self.model_input.setCurrentIndex(index if index >= 0 else 0)
 
     def _save_config(self):
         base_url = self.base_url_input.currentText().strip()
