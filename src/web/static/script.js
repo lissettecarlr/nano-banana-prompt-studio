@@ -435,10 +435,10 @@ function openConfigModal() {
 async function saveConfigs() {
     const payload = {
         base_url: elements.configBaseUrl.value,
-        api_key: elements.configApiKey.value,
+        api_key: elements.configApiKey.value || state.config.api_key || '',
         model: elements.configModel.value,
         gemini_base_url: elements.configGeminiBaseUrl.value,
-        gemini_api_key: elements.configGeminiApiKey.value,
+        gemini_api_key: elements.configGeminiApiKey.value || state.config.gemini_api_key || '',
         gemini_model: elements.configGeminiModel.value
     };
 
