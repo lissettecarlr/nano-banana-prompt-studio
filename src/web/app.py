@@ -17,7 +17,7 @@ from typing import Optional, List
 from utils.yaml_handler import YamlHandler
 from utils.preset_manager import PresetManager
 from utils.ai_config import AIConfigManager
-from components.gemini_client import GeminiClient
+from components.image_clients import IMAGE_PROVIDER_CAPABILITIES, create_image_provider
 
 
 app = Flask(__name__, static_folder='static')
@@ -50,10 +50,14 @@ def get_config():
         safe_config = {
             'base_url': config.get('base_url', ''),
             'model': config.get('model', ''),
+            'image_provider': config.get('image_provider', '') or 'gemini',
             'gemini_base_url': config.get('gemini_base_url', ''),
             'gemini_model': config.get('gemini_model', ''),
+            'openai_image_base_url': config.get('openai_image_base_url', ''),
+            'openai_image_model': config.get('openai_image_model', ''),
             'has_api_key': bool(config.get('api_key')),
-            'has_gemini_api_key': bool(config.get('gemini_api_key'))
+            'has_gemini_api_key': bool(config.get('gemini_api_key')),
+            'has_openai_image_api_key': bool(config.get('openai_image_api_key'))
         }
         return jsonify(safe_config)
     except Exception as e:
@@ -74,17 +78,31 @@ def update_config():
             config['api_key'] = data['api_key']
         if 'model' in data:
             config['model'] = data['model']
+        if 'image_provider' in data:
+            config['image_provider'] = data['image_provider']
         if 'gemini_base_url' in data:
             config['gemini_base_url'] = data['gemini_base_url']
         if 'gemini_api_key' in data:
             config['gemini_api_key'] = data['gemini_api_key']
         if 'gemini_model' in data:
             config['gemini_model'] = data['gemini_model']
+        if 'openai_image_base_url' in data:
+            config['openai_image_base_url'] = data['openai_image_base_url']
+        if 'openai_image_api_key' in data:
+            config['openai_image_api_key'] = data['openai_image_api_key']
+        if 'openai_image_model' in data:
+            config['openai_image_model'] = data['openai_image_model']
         
         config_manager.save_config(config)
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/image-providers', methods=['GET'])
+def get_image_providers():
+    """获取图片生成 provider 能力列表"""
+    return jsonify(IMAGE_PROVIDER_CAPABILITIES)
 
 
 @app.route('/api/options', methods=['GET'])
@@ -304,9 +322,13 @@ def generate_image():
         data = request.json
         prompt = data.get('prompt', '')
         images = data.get('images', [])
-        aspect_ratio = data.get('aspect_ratio', '1:1')
-        image_size = data.get('image_size', '2K') # GeminiClient default is 2K
-        thinking_level = data.get('thinking_level', 'low')
+        options = data.get('options') or {}
+        if not options:
+            options = {
+                'aspect_ratio': data.get('aspect_ratio', '1:1'),
+                'image_size': data.get('image_size', '2K'),
+                'thinking_level': data.get('thinking_level', 'low'),
+            }
 
         if not prompt:
             return jsonify({'error': '提示词不能为空'}), 400
@@ -347,25 +369,9 @@ def generate_image():
                 else:
                     processed_images.append(img_str)
 
-        # 获取配置
-        config = config_manager.get_gemini_config()
-        base_url = config.get('base_url', '')
-        api_key = config.get('api_key', '')
-        model = config.get('model', 'gemini-3-pro-image-preview')
-
-        if not base_url or not api_key:
-            return jsonify({'error': '请先配置Gemini API'}), 400
-
-        # 初始化客户端
-        client = GeminiClient(
-            base_url=base_url,
-            api_key=api_key,
-            image_model=model
-        )
-        
-        client.set_aspect_ratio(aspect_ratio)
-        client.set_image_size(image_size)
-        client.set_thinking_level(thinking_level)
+        # 初始化当前图片生成 provider
+        client = create_image_provider(config_manager.load_config())
+        client.set_generation_options(options)
 
         # 生成图片
         generated_image = client.generate_image(

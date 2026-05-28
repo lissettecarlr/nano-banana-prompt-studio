@@ -27,26 +27,8 @@
             <div class="section">
                 <h2 class="section-title">生成设置</h2>
                 <div class="gen-controls">
-                    <div class="form-group">
-                        <label>宽高比</label>
-                        <select id="genAspectRatio" class="select-input">
-                            <option value="1:1">1:1 (正方形)</option>
-                            <option value="2:3">2:3 (人像)</option>
-                            <option value="3:2">3:2 (风景)</option>
-                            <option value="3:4">3:4</option>
-                            <option value="4:3">4:3</option>
-                            <option value="9:16">9:16 (手机)</option>
-                            <option value="16:9">16:9 (屏幕)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>尺寸</label>
-                        <select id="genImageSize" class="select-input">
-                            <option value="1K">1K</option>
-                            <option value="2K" selected>2K</option>
-                            <option value="4K">4K</option>
-                        </select>
-                    </div>
+                    <div id="activeImageProvider" class="provider-status">当前渠道：加载中...</div>
+                    <div id="imageProviderOptions"></div>
 
                     <!-- 参考图片 -->
                     <div class="form-group">
@@ -415,22 +397,42 @@
 
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);">
 
-                <h4>图片生成模型 (Gemini)</h4>
+                <h4>图片生成模型</h4>
                 <div class="form-group">
+                    <label>当前渠道</label>
+                    <select id="configImageProvider" class="select-input">
+                        <option value="gemini">Gemini</option>
+                        <option value="openai_images">OpenAI Images</option>
+                    </select>
+                </div>
+                <div class="form-group image-config-group" data-provider-config="gemini">
                     <label>Gemini Base URL</label>
                     <input type="text" id="configGeminiBaseUrl" class="text-input"
                         placeholder="https://generativelanguage.googleapis.com">
                 </div>
-                <div class="form-group">
+                <div class="form-group image-config-group" data-provider-config="gemini">
                     <label>Gemini API Key</label>
                     <input type="password" id="configGeminiApiKey" class="text-input">
                 </div>
-                <div class="form-group">
+                <div class="form-group image-config-group" data-provider-config="gemini">
                     <label>Gemini Model</label>
                     <select id="configGeminiModel" class="select-input">
                         <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                         <option value="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview</option>
                     </select>
+                </div>
+                <div class="form-group image-config-group" data-provider-config="openai_images">
+                    <label>gpt-image-2 Base URL</label>
+                    <input type="text" id="configOpenAIImageBaseUrl" class="text-input"
+                        placeholder="https://api.openai.com/v1">
+                </div>
+                <div class="form-group image-config-group" data-provider-config="openai_images">
+                    <label>gpt-image-2 API Key</label>
+                    <input type="password" id="configOpenAIImageApiKey" class="text-input">
+                </div>
+                <div class="form-group image-config-group" data-provider-config="openai_images">
+                    <label>gpt-image-2 Model</label>
+                    <input type="text" id="configOpenAIImageModel" class="text-input" placeholder="gpt-image-2">
                 </div>
             </div>
             <div class="modal-footer">

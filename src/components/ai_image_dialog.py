@@ -25,16 +25,11 @@ from PyQt6.QtWidgets import (
 )
 
 from utils.ai_config import AIConfigManager
-from components.gemini_client import (
-    ASPECT_RATIO_LIST,
-    IMAGE_SIZE_LIST,
-    THINKING_LEVEL_LIST,
-    GeminiClient,
-)
+from components.image_clients import IMAGE_PROVIDER_CAPABILITIES, create_image_provider
 
 
 class GeminiImageThread(QThread):
-    """后台线程：调用 Gemini 接口生成图片"""
+    """后台线程：调用当前图片生成 provider 生成图片"""
 
     image_ready = pyqtSignal(bytes)
     error = pyqtSignal(str)
@@ -44,41 +39,35 @@ class GeminiImageThread(QThread):
         self,
         prompt: str,
         image_paths: List[str],
-        aspect_ratio: str,
-        image_size: str,
-        thinking_level: str,
+        aspect_ratio: str = "1:1",
+        image_size: str = "2K",
+        thinking_level: str = "low",
+        options: Optional[dict] = None,
     ):
         super().__init__()
         self.prompt = prompt
         self.image_paths = image_paths
-        self.aspect_ratio = aspect_ratio
-        self.image_size = image_size
-        self.thinking_level = thinking_level
+        self.options = options or {
+            "aspect_ratio": aspect_ratio,
+            "image_size": image_size,
+            "thinking_level": thinking_level,
+        }
 
     def run(self):
         try:
-            self.progress.emit("正在初始化 Gemini 客户端...")
+            self.progress.emit("正在初始化图片生成客户端...")
             config_manager = AIConfigManager()
-            gemini_config = config_manager.get_gemini_config()
+            full_config = config_manager.load_config()
+            client = create_image_provider(full_config)
+            client.set_generation_options(self.options)
 
-            base_url = (gemini_config.get("base_url") or "").strip()
-            api_key = (gemini_config.get("api_key") or "").strip()
-            model = (gemini_config.get("model") or "gemini-3-pro-image-preview").strip() or "gemini-3-pro-image-preview"
-
-            if not base_url or not api_key:
-                self.error.emit("请先在配置中填写 Gemini Base URL 和 API Key")
-                return
-
-            client = GeminiClient(
-                base_url=base_url,
-                api_key=api_key,
-                image_model=model,
-            )
-            client.set_aspect_ratio(self.aspect_ratio)
-            client.set_image_size(self.image_size)
-            client.set_thinking_level(self.thinking_level)
-
-            self.progress.emit("正在生成图片...")
+            provider_label = {
+                "gemini": "Gemini",
+                "openai_images": "OpenAI Images",
+            }.get(full_config.get("image_provider", "gemini"), "未知渠道")
+            ref_count = len(self.image_paths) if self.image_paths else 0
+            hint = f"，含 {ref_count} 张参考图" if ref_count else ""
+            self.progress.emit(f"正在生成图片（{provider_label}{hint}）...")
             image = client.generate_image(
                 text=self.prompt,
                 images=self.image_paths if self.image_paths else None,
@@ -367,11 +356,11 @@ class AIImageGenerateDialog(QDialog):
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(4)
         
-        title = QLabel("Gemini AI 文生图")
+        title = QLabel("AI 文生图")
         title.setStyleSheet("font-size: 24px; font-weight: 700; color: #262626;")
         title_layout.addWidget(title)
         
-        subtitle = QLabel("使用 banana pro生成图片")
+        subtitle = QLabel("根据当前图片生成渠道生成图片")
         subtitle.setStyleSheet("font-size: 13px; color: #8c8c8c;")
         title_layout.addWidget(subtitle)
         
@@ -441,20 +430,20 @@ class AIImageGenerateDialog(QDialog):
         param_title.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626;")
         param_layout.addWidget(param_title)
 
-        # 宽高比
-        aspect_container = self._create_param_row("宽高比", ASPECT_RATIO_LIST)
-        self.aspect_combo = aspect_container.findChild(QComboBox)
-        param_layout.addWidget(aspect_container)
+        self.provider_status_label = QLabel()
+        self.provider_status_label.setStyleSheet(
+            "font-size: 12px; color: #0958d9; background-color: #e6f7ff; "
+            "border: 1px solid #91d5ff; border-radius: 6px; padding: 6px 10px;"
+        )
+        param_layout.addWidget(self.provider_status_label)
 
-        # 输出尺寸
-        size_container = self._create_param_row("输出尺寸", IMAGE_SIZE_LIST)
-        self.size_combo = size_container.findChild(QComboBox)
-        param_layout.addWidget(size_container)
-
-        # 思考级别
-        thinking_container = self._create_param_row("思考级别", THINKING_LEVEL_LIST, default="low")
-        self.thinking_combo = thinking_container.findChild(QComboBox)
-        param_layout.addWidget(thinking_container)
+        self.image_option_widgets = {}
+        self.image_options_container = QWidget()
+        self.image_options_layout = QVBoxLayout(self.image_options_container)
+        self.image_options_layout.setContentsMargins(0, 0, 0, 0)
+        self.image_options_layout.setSpacing(12)
+        param_layout.addWidget(self.image_options_container)
+        self._render_image_options()
 
         left_layout.addWidget(param_frame)
 
@@ -647,9 +636,40 @@ class AIImageGenerateDialog(QDialog):
 
         return container
 
+    def _render_image_options(self):
+        """根据当前图片 provider 渲染参数控件"""
+        while self.image_options_layout.count():
+            item = self.image_options_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        self.image_option_widgets = {}
+        provider = self.config_manager.get_image_provider()
+        provider_config = IMAGE_PROVIDER_CAPABILITIES.get(provider) or IMAGE_PROVIDER_CAPABILITIES["gemini"]
+        self.provider_status_label.setText(f"当前生图渠道：{provider_config['label']}")
+
+        for key, option in provider_config["options"].items():
+            container = self._create_param_row(
+                option["label"],
+                option.get("values", []),
+                default=option.get("default"),
+            )
+            combo = container.findChild(QComboBox)
+            self.image_option_widgets[key] = combo
+            self.image_options_layout.addWidget(container)
+
+    def _collect_image_options(self) -> dict:
+        """收集当前 provider 的生图参数"""
+        return {
+            key: combo.currentText()
+            for key, combo in self.image_option_widgets.items()
+        }
+
     def _update_config_status(self):
-        api_key = self.config_manager.get_gemini_api_key()
-        base_url = self.config_manager.get_gemini_base_url()
+        image_config = self.config_manager.get_active_image_config()
+        api_key = image_config.get("api_key", "")
+        base_url = image_config.get("base_url", "")
         if api_key:
             provider = base_url.split("/")[2] if base_url and "/" in base_url else "已配置"
             self.config_status_label.setText(f"✓ {provider}")
@@ -665,8 +685,11 @@ class AIImageGenerateDialog(QDialog):
             )
 
     def _open_config_dialog(self):
-        dialog = GeminiImageConfigDialog(self)
+        from components.ai_dialog import UnifiedAIConfigDialog
+
+        dialog = UnifiedAIConfigDialog(self)
         dialog.config_saved.connect(self._update_config_status)
+        dialog.config_saved.connect(self._render_image_options)
         dialog.exec()
 
     def _add_images(self):
@@ -735,11 +758,12 @@ class AIImageGenerateDialog(QDialog):
             QMessageBox.warning(self, "提示", "当前提示词为空，请先在主界面填写内容")
             return
 
-        if not self.config_manager.get_gemini_api_key():
+        image_config = self.config_manager.get_active_image_config()
+        if not image_config.get("api_key"):
             reply = QMessageBox.question(
                 self,
                 "未配置 API",
-                "尚未配置 Gemini API，是否现在配置？",
+                "尚未配置当前图片生成 API，是否现在配置？",
                 QMessageBox.StandardButton.Yes,
                 QMessageBox.StandardButton.No,
             )
@@ -753,14 +777,12 @@ class AIImageGenerateDialog(QDialog):
         self.preview_area.setPixmap(QPixmap())
         self.save_btn.setEnabled(False)
         self._set_generating_state(True)
-        self._set_status("提交到 Gemini 服务", "#1890ff")
+        self._set_status("提交到图片生成服务", "#1890ff")
 
         self.worker_thread = GeminiImageThread(
             prompt=prompt,
             image_paths=self.selected_images,
-            aspect_ratio=self.aspect_combo.currentText(),
-            image_size=self.size_combo.currentText(),
-            thinking_level=self.thinking_combo.currentText(),
+            options=self._collect_image_options(),
         )
         self.worker_thread.progress.connect(lambda msg: self._set_status(f"⏳ {msg}", "#1890ff"))
         self.worker_thread.image_ready.connect(self._on_image_ready)
@@ -785,9 +807,8 @@ class AIImageGenerateDialog(QDialog):
         self.preview_area.setText("生成失败，请调整参数后重试")
 
     def _set_generating_state(self, generating: bool):
-        self.aspect_combo.setEnabled(not generating)
-        self.size_combo.setEnabled(not generating)
-        self.thinking_combo.setEnabled(not generating)
+        for combo in self.image_option_widgets.values():
+            combo.setEnabled(not generating)
         self.image_list.setEnabled(not generating)
         self.add_image_btn.setEnabled(not generating)
         self.remove_image_btn.setEnabled(not generating)

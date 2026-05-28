@@ -11,8 +11,8 @@ python start.py
 ## docker
 在项目根目录
 ```bash
-docker build -f web_dockerfile -t nano-banana-web:v0.1.8 .
+docker build -f web_dockerfile -t nano-banana-web:v0.1.9 .
 
 # 运行容器
-docker run --rm --name nano-banana-web -p 5000:5000 nano-banana-web:v0.1.8
+docker run --rm --name nano-banana-web -p 5000:5000 nano-banana-web:v0.1.9
 ```

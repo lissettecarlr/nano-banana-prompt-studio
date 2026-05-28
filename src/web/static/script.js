@@ -5,6 +5,7 @@ const state = {
     currentData: null,
     presets: [],
     config: {},
+    imageProviders: {},
     uploadedImages: [], // Base64 strings
     isGenerating: false
 };
@@ -81,8 +82,8 @@ const elements = {
     copyJsonBtn: document.getElementById('copyJsonBtn'),
 
     // 生图区域
-    genAspectRatio: document.getElementById('genAspectRatio'),
-    genImageSize: document.getElementById('genImageSize'),
+    activeImageProvider: document.getElementById('activeImageProvider'),
+    imageProviderOptions: document.getElementById('imageProviderOptions'),
     // genThinkingLevel: document.getElementById('genThinkingLevel'), // Removed from HTML
     imageInput: document.getElementById('imageInput'),
     uploadImageBtn: document.getElementById('uploadImageBtn'),
@@ -116,10 +117,14 @@ const elements = {
     configBaseUrl: document.getElementById('configBaseUrl'),
     configApiKey: document.getElementById('configApiKey'),
     configModel: document.getElementById('configModel'),
-    // Gemini Config
+    // Image generation Config
+    configImageProvider: document.getElementById('configImageProvider'),
     configGeminiBaseUrl: document.getElementById('configGeminiBaseUrl'),
     configGeminiApiKey: document.getElementById('configGeminiApiKey'),
     configGeminiModel: document.getElementById('configGeminiModel'),
+    configOpenAIImageBaseUrl: document.getElementById('configOpenAIImageBaseUrl'),
+    configOpenAIImageApiKey: document.getElementById('configOpenAIImageApiKey'),
+    configOpenAIImageModel: document.getElementById('configOpenAIImageModel'),
 
     saveConfigBtn: document.getElementById('saveConfigBtn'),
 
@@ -410,11 +415,22 @@ function updateJsonPreview() {
 // ========================================
 // Config Management
 // ========================================
+async function loadImageProviders() {
+    try {
+        const response = await fetch('/api/image-providers');
+        state.imageProviders = await response.json();
+        renderImageProviderOptions();
+    } catch (error) {
+        console.error('Load image providers error:', error);
+    }
+}
+
 async function loadConfig() {
     try {
         const response = await fetch('/api/config');
         const config = await response.json();
         state.config = config;
+        renderImageProviderOptions();
     } catch (error) {
         console.error('Load config error:', error);
     }
@@ -425,9 +441,14 @@ function openConfigModal() {
     elements.configApiKey.value = ''; // Don't show API key
     elements.configModel.value = state.config.model || '';
 
+    elements.configImageProvider.value = state.config.image_provider || 'gemini';
     elements.configGeminiBaseUrl.value = state.config.gemini_base_url || '';
     elements.configGeminiApiKey.value = '';
     elements.configGeminiModel.value = state.config.gemini_model || '';
+    elements.configOpenAIImageBaseUrl.value = state.config.openai_image_base_url || '';
+    elements.configOpenAIImageApiKey.value = '';
+    elements.configOpenAIImageModel.value = state.config.openai_image_model || 'gpt-image-2';
+    updateImageConfigVisibility();
 
     elements.configModal.classList.add('active');
 }
@@ -435,12 +456,22 @@ function openConfigModal() {
 async function saveConfigs() {
     const payload = {
         base_url: elements.configBaseUrl.value,
-        api_key: elements.configApiKey.value || state.config.api_key || '',
         model: elements.configModel.value,
+        image_provider: elements.configImageProvider.value,
         gemini_base_url: elements.configGeminiBaseUrl.value,
-        gemini_api_key: elements.configGeminiApiKey.value || state.config.gemini_api_key || '',
-        gemini_model: elements.configGeminiModel.value
+        gemini_model: elements.configGeminiModel.value,
+        openai_image_base_url: elements.configOpenAIImageBaseUrl.value,
+        openai_image_model: elements.configOpenAIImageModel.value
     };
+    if (elements.configApiKey.value) {
+        payload.api_key = elements.configApiKey.value;
+    }
+    if (elements.configGeminiApiKey.value) {
+        payload.gemini_api_key = elements.configGeminiApiKey.value;
+    }
+    if (elements.configOpenAIImageApiKey.value) {
+        payload.openai_image_api_key = elements.configOpenAIImageApiKey.value;
+    }
 
     try {
         const response = await fetch('/api/config', {
@@ -458,6 +489,54 @@ async function saveConfigs() {
     } catch (e) {
         showToast('保存出错: ' + e, 'error');
     }
+}
+
+function getActiveImageProvider() {
+    return state.config.image_provider || 'gemini';
+}
+
+function renderImageProviderOptions() {
+    if (!elements.imageProviderOptions || !state.imageProviders) return;
+
+    const provider = getActiveImageProvider();
+    const providerConfig = state.imageProviders[provider] || state.imageProviders.gemini;
+    if (!providerConfig || !providerConfig.options) return;
+
+    if (elements.activeImageProvider) {
+        elements.activeImageProvider.textContent = `当前生图渠道：${providerConfig.label || provider}`;
+    }
+
+    elements.imageProviderOptions.innerHTML = Object.entries(providerConfig.options).map(([key, option]) => {
+        const values = option.values || [];
+        const options = values.map(value => {
+            const selected = value === option.default ? 'selected' : '';
+            return `<option value="${value}" ${selected}>${value}</option>`;
+        }).join('');
+
+        return `
+            <div class="form-group">
+                <label>${option.label}</label>
+                <select class="select-input image-option-input" data-option-key="${key}">
+                    ${options}
+                </select>
+            </div>
+        `;
+    }).join('');
+}
+
+function collectImageOptions() {
+    const options = {};
+    document.querySelectorAll('.image-option-input').forEach(input => {
+        options[input.dataset.optionKey] = input.value;
+    });
+    return options;
+}
+
+function updateImageConfigVisibility() {
+    const provider = elements.configImageProvider.value || 'gemini';
+    document.querySelectorAll('.image-config-group').forEach(group => {
+        group.style.display = group.dataset.providerConfig === provider ? '' : 'none';
+    });
 }
 
 // ========================================
@@ -961,8 +1040,7 @@ async function generateImage() {
             body: JSON.stringify({
                 prompt: prompt,
                 images: state.uploadedImages,
-                aspect_ratio: elements.genAspectRatio.value,
-                image_size: elements.genImageSize.value,
+                options: collectImageOptions(),
                 // thinking_level: elements.genThinkingLevel.value // Removed
             })
         });
@@ -1054,6 +1132,7 @@ function downloadImage(dataUrl) {
 // Init
 // ========================================
 function init() {
+    loadImageProviders();
     loadConfig();
 
     // === 移动端侧边栏切换 ===
@@ -1077,6 +1156,11 @@ function init() {
         elements.configModal.classList.remove('active');
     });
     elements.saveConfigBtn.addEventListener('click', saveConfigs);
+    elements.configImageProvider.addEventListener('change', () => {
+        state.config.image_provider = elements.configImageProvider.value;
+        updateImageConfigVisibility();
+        renderImageProviderOptions();
+    });
 
     elements.resetFormBtn.addEventListener('click', clearForm);
 

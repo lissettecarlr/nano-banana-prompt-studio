@@ -355,7 +355,11 @@ class UnifiedAIConfigDialog(QDialog):
         
         image_layout.addWidget(image_title_container)
         
-
+        self.image_provider_input = QComboBox()
+        self.image_provider_input.addItem("Gemini", "gemini")
+        self.image_provider_input.addItem("OpenAI Images", "openai_images")
+        self.image_provider_input.currentIndexChanged.connect(self._on_image_provider_changed)
+        image_layout.addWidget(self._build_labeled_widget("图片生成渠道", self.image_provider_input))
         image_layout.addWidget(self._build_labeled_widget("Base URL", self._create_url_input("image")))
         image_layout.addWidget(self._build_labeled_widget("API Key", self._create_key_input("image")))
         image_layout.addWidget(self._build_labeled_widget("模型名称", self._create_model_input("image")))
@@ -412,9 +416,11 @@ class UnifiedAIConfigDialog(QDialog):
             self.prompt_model_input = widget
         else:
             widget = QComboBox()
+            widget.setEditable(True)
             widget.addItems([
                 "gemini-3-pro-image-preview",
                 "gemini-3.1-flash-image-preview",
+                "gpt-image-2",
             ])
             self.image_model_input = widget
         return widget
@@ -435,6 +441,7 @@ class UnifiedAIConfigDialog(QDialog):
     def _load_config(self):
         """加载现有配置"""
         config = self.config_manager.load_config()
+        self._image_config_cache = config
         
         # 提示词生成AI配置 - 只在配置存在且非空时设置文本，否则使用placeholder
         base_url = config.get("base_url", "")
@@ -449,18 +456,32 @@ class UnifiedAIConfigDialog(QDialog):
         if model:
             self.prompt_model_input.setText(model)
         
-        # 图片生成AI配置 - 只在配置存在且非空时设置文本，否则使用placeholder
-        gemini_base_url = config.get("gemini_base_url", "")
-        if gemini_base_url:
-            self.image_url_input.setText(gemini_base_url)
-        
-        gemini_api_key = config.get("gemini_api_key", "")
-        if gemini_api_key:
-            self.image_key_input.setPlainText(gemini_api_key)
-        
-        gemini_model = config.get("gemini_model", "gemini-3-pro-image-preview")
-        index = self.image_model_input.findText(gemini_model)
-        self.image_model_input.setCurrentIndex(index if index >= 0 else 0)
+        provider = config.get("image_provider", "") or "gemini"
+        index = self.image_provider_input.findData(provider)
+        self.image_provider_input.setCurrentIndex(index if index >= 0 else 0)
+        self._on_image_provider_changed()
+
+    def _on_image_provider_changed(self):
+        """根据当前图片 provider 加载对应配置。"""
+        config = getattr(self, "_image_config_cache", None) or self.config_manager.load_config()
+        provider = self.image_provider_input.currentData() or "gemini"
+
+        if provider == "openai_images":
+            self.image_url_input.setPlaceholderText("https://api.openai.com/v1")
+            self.image_url_input.setText(config.get("openai_image_base_url", ""))
+            self.image_key_input.setPlainText(config.get("openai_image_api_key", ""))
+            model = config.get("openai_image_model", "gpt-image-2") or "gpt-image-2"
+        else:
+            self.image_url_input.setPlaceholderText("https://generativelanguage.googleapis.com")
+            self.image_url_input.setText(config.get("gemini_base_url", ""))
+            self.image_key_input.setPlainText(config.get("gemini_api_key", ""))
+            model = config.get("gemini_model", "gemini-3-pro-image-preview") or "gemini-3-pro-image-preview"
+
+        index = self.image_model_input.findText(model)
+        if index >= 0:
+            self.image_model_input.setCurrentIndex(index)
+        else:
+            self.image_model_input.setEditText(model)
     
     def _save_config(self):
         """保存配置"""
@@ -470,6 +491,7 @@ class UnifiedAIConfigDialog(QDialog):
         prompt_model = self.prompt_model_input.text().strip()
         
         # 图片生成AI配置 - 直接获取用户输入，不填充默认值
+        image_provider = self.image_provider_input.currentData() or "gemini"
         image_base_url = self.image_url_input.text().strip()
         image_api_key = self.image_key_input.toPlainText().strip()
         image_model = self.image_model_input.currentText().strip()
@@ -484,10 +506,20 @@ class UnifiedAIConfigDialog(QDialog):
             "base_url": prompt_base_url,
             "api_key": prompt_api_key,
             "model": prompt_model,
-            "gemini_base_url": image_base_url,
-            "gemini_api_key": image_api_key,
-            "gemini_model": image_model,
+            "image_provider": image_provider,
         }
+        if image_provider == "openai_images":
+            config.update({
+                "openai_image_base_url": image_base_url,
+                "openai_image_api_key": image_api_key,
+                "openai_image_model": image_model,
+            })
+        else:
+            config.update({
+                "gemini_base_url": image_base_url,
+                "gemini_api_key": image_api_key,
+                "gemini_model": image_model,
+            })
         
         if self.config_manager.save_config(config):
             self.config_saved.emit()

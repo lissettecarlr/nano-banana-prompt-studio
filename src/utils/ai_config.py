@@ -11,9 +11,13 @@ class AIConfigManager:
         "base_url": "https://api.openai.com/v1",
         "api_key": "",
         "model": "gpt-5.1",
+        "image_provider": "gemini",
         "gemini_base_url": "",
         "gemini_api_key": "",
         "gemini_model": "gemini-3-pro-image-preview",
+        "openai_image_base_url": "https://api.openai.com/v1",
+        "openai_image_api_key": "",
+        "openai_image_model": "gpt-image-2",
     }
     
     def __init__(self):
@@ -86,6 +90,31 @@ class AIConfigManager:
             "base_url": config.get("gemini_base_url", ""),
             "api_key": config.get("gemini_api_key", ""),
             "model": config.get("gemini_model", ""),
+        }
+
+    def get_image_provider(self) -> str:
+        return self.load_config().get("image_provider", "") or "gemini"
+
+    def get_openai_image_config(self) -> dict:
+        config = self.load_config()
+        return {
+            "base_url": config.get("openai_image_base_url", ""),
+            "api_key": config.get("openai_image_api_key", ""),
+            "model": config.get("openai_image_model", "") or "gpt-image-2",
+        }
+
+    def get_active_image_config(self) -> dict:
+        config = self.load_config()
+        provider = config.get("image_provider", "") or "gemini"
+        if provider == "openai_images":
+            image_config = self.get_openai_image_config()
+        else:
+            provider = "gemini"
+            image_config = self.get_gemini_config()
+
+        return {
+            "provider": provider,
+            **image_config,
         }
 
     def get_gemini_base_url(self) -> str:

@@ -41,7 +41,7 @@ from utils.preset_manager import PresetManager
 from utils.resource_path import get_images_dir
 from components.ai_dialog import AIGenerateDialog
 from components.ai_image_dialog import GeminiImageThread
-from components.gemini_client import ASPECT_RATIO_LIST, IMAGE_SIZE_LIST
+from components.image_clients import IMAGE_PROVIDER_CAPABILITIES
 from utils.ai_config import AIConfigManager
 from styles import LIGHT_THEME
 
@@ -614,21 +614,20 @@ class PromptGeneratorApp(QMainWindow):
         param_layout.setContentsMargins(16, 12, 16, 12)
         param_layout.setSpacing(12)
 
-        # 宽高比和输出尺寸合并成一行
-        param_row = QWidget()
-        param_row_layout = QHBoxLayout(param_row)
-        param_row_layout.setContentsMargins(0, 0, 0, 0)
-        param_row_layout.setSpacing(12)
-        
-        aspect_container = self._create_param_row("宽高比", ASPECT_RATIO_LIST)
-        self.aspect_combo = aspect_container.findChild(QComboBox)
-        param_row_layout.addWidget(aspect_container, 1)
-        
-        size_container = self._create_param_row("输出尺寸", IMAGE_SIZE_LIST)
-        self.size_combo = size_container.findChild(QComboBox)
-        param_row_layout.addWidget(size_container, 1)
-        
-        param_layout.addWidget(param_row)
+        self.image_provider_label = QLabel()
+        self.image_provider_label.setStyleSheet(
+            "font-size: 12px; color: #0958d9; background-color: #e6f7ff; "
+            "border: 1px solid #91d5ff; border-radius: 6px; padding: 6px 10px;"
+        )
+        param_layout.addWidget(self.image_provider_label)
+
+        self.image_option_widgets = {}
+        self.image_options_container = QWidget()
+        self.image_options_layout = QVBoxLayout(self.image_options_container)
+        self.image_options_layout.setContentsMargins(0, 0, 0, 0)
+        self.image_options_layout.setSpacing(8)
+        param_layout.addWidget(self.image_options_container)
+        self._render_image_options()
 
         # 参考图片区域：合并到参数设置中
         img_row = QWidget()
@@ -739,6 +738,36 @@ class PromptGeneratorApp(QMainWindow):
         container_layout.addWidget(combo, 1)
 
         return container
+
+    def _render_image_options(self):
+        """根据当前图片 provider 渲染主窗口生图参数"""
+        while self.image_options_layout.count():
+            item = self.image_options_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        self.image_option_widgets = {}
+        provider = self.config_manager.get_image_provider()
+        provider_config = IMAGE_PROVIDER_CAPABILITIES.get(provider) or IMAGE_PROVIDER_CAPABILITIES["gemini"]
+        self.image_provider_label.setText(f"当前生图渠道：{provider_config['label']}")
+
+        for key, option in provider_config["options"].items():
+            container = self._create_param_row(
+                option["label"],
+                option.get("values", []),
+                default=option.get("default"),
+            )
+            combo = container.findChild(QComboBox)
+            self.image_option_widgets[key] = combo
+            self.image_options_layout.addWidget(container)
+
+    def _collect_image_options(self) -> dict:
+        """收集当前 provider 的生图参数"""
+        return {
+            key: combo.currentText()
+            for key, combo in self.image_option_widgets.items()
+        }
 
     def _create_button_bar(self) -> QWidget:
         bar = QWidget()
@@ -1308,11 +1337,12 @@ class PromptGeneratorApp(QMainWindow):
                 if special_text:
                     prompt_text = prompt_text + "\n\n特别要求：" + special_text
 
-        if not self.config_manager.get_gemini_api_key():
+        image_config = self.config_manager.get_active_image_config()
+        if not image_config.get("api_key"):
             reply = QMessageBox.question(
                 self,
                 "未配置 API",
-                "尚未配置 Gemini API，是否现在配置？",
+                "尚未配置当前图片生成 API，是否现在配置？",
                 QMessageBox.StandardButton.Yes,
                 QMessageBox.StandardButton.No,
             )
@@ -1331,18 +1361,16 @@ class PromptGeneratorApp(QMainWindow):
         
         # 根据模式显示不同的状态信息
         if self.line_art_mode_enabled.isChecked():
-            self._set_image_status("提交到 Gemini 服务（角色线稿模式）", "#1890ff")
+            self._set_image_status("提交到图片生成服务（角色线稿模式）", "#1890ff")
         else:
-            self._set_image_status("提交到 Gemini 服务", "#1890ff")
+            self._set_image_status("提交到图片生成服务", "#1890ff")
         # 禁用点击预览功能
         self._enable_image_preview(False)
 
         self.worker_thread = GeminiImageThread(
             prompt=prompt_text,
             image_paths=self.selected_images,
-            aspect_ratio=self.aspect_combo.currentText(),
-            image_size=self.size_combo.currentText(),
-            thinking_level="low",  # 移除思考级别参数，使用默认值
+            options=self._collect_image_options(),
         )
         self.worker_thread.progress.connect(lambda msg: self._set_image_status(f"⏳ {msg}", "#1890ff"))
         self.worker_thread.image_ready.connect(self._on_image_ready)
@@ -1377,8 +1405,8 @@ class PromptGeneratorApp(QMainWindow):
 
     def _set_image_generating_state(self, generating: bool):
         """设置生成状态"""
-        self.aspect_combo.setEnabled(not generating)
-        self.size_combo.setEnabled(not generating)
+        for combo in self.image_option_widgets.values():
+            combo.setEnabled(not generating)
         self.add_image_btn.setEnabled(not generating)
         # 禁用所有图片按钮
         for btn in self.image_buttons:
@@ -1417,12 +1445,14 @@ class PromptGeneratorApp(QMainWindow):
         """打开统一的AI配置对话框"""
         from components.ai_dialog import UnifiedAIConfigDialog
         dialog = UnifiedAIConfigDialog(self)
+        dialog.config_saved.connect(self._render_image_options)
         dialog.exec()
     
     def _open_image_config_dialog(self):
         """打开配置对话框（已废弃，保留以兼容）"""
         from components.ai_dialog import UnifiedAIConfigDialog
         dialog = UnifiedAIConfigDialog(self)
+        dialog.config_saved.connect(self._render_image_options)
         dialog.exec()
 
     def _refresh_preview_pixmap(self):

@@ -640,6 +640,9 @@ body {
     border-radius: var(--radius-xl);
     width: 90%;
     max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
     box-shadow: var(--shadow-xl);
     animation: slideUp var(--transition-base);
 }
@@ -691,14 +694,26 @@ body {
 
 .modal-body {
     padding: var(--spacing-lg);
+    overflow-y: auto;
 }
 
 .modal-footer {
     display: flex;
+    flex-shrink: 0;
     justify-content: flex-end;
     gap: var(--spacing-md);
     padding: var(--spacing-lg);
     border-top: 1px solid var(--border-color);
+}
+
+.provider-status {
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: var(--primary-light);
+    color: var(--primary-color);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
 }
 
 /* ========================================
