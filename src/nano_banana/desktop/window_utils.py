@@ -10,8 +10,23 @@ from PyQt6.QtWidgets import QApplication, QWidget
 IMAGE_FILE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
 
+_settings_file: str | None = None
+
+
+def use_settings_file(path: str | os.PathLike | None) -> None:
+    """把 UI 状态改存到指定 ini 文件（传 None 恢复系统默认位置）。
+
+    QSettings(组织, 应用) 固定用系统原生存储（Windows 上是注册表），
+    setDefaultFormat 对它无效，所以测试 / 便携模式需要显式指定文件。
+    """
+    global _settings_file
+    _settings_file = os.fspath(path) if path else None
+
+
 def app_settings() -> QSettings:
     """应用级 UI 状态存储（窗口几何、上次目录等）。"""
+    if _settings_file:
+        return QSettings(_settings_file, QSettings.Format.IniFormat)
     return QSettings("NanoBanana", "NanoBananaStudio")
 
 

@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QFrame,
 )
-from PyQt6.QtCore import Qt
 
 
 class FieldGroup(QFrame):

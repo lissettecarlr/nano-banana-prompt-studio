@@ -1,5 +1,4 @@
-"""AI 对话框。"""
-import json
+"""AI 修改提示词对话框。"""
 import os
 from typing import List
 from PyQt6.QtWidgets import (
@@ -7,29 +6,23 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QTextEdit,
     QPushButton,
     QFrame,
     QWidget,
     QMessageBox,
-    QSplitter,
     QStackedWidget,
     QFileDialog,
     QListWidget,
     QListWidgetItem,
     QCheckBox,
     QScrollArea,
-    QComboBox,
-    QTabWidget,
 )
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QFont, QIcon, QKeySequence, QPixmap
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QPixmap
 
-from nano_banana.core.chat import strip_code_fences
-from nano_banana.core.config import AIConfigManager
-from nano_banana.core.images.provider_config import IMAGE_PROVIDER_META
-from nano_banana.desktop.ai_service import AIService
+from nano_banana.core import Change, PromptEvent, Studio
+from nano_banana.desktop.workers import PromptService
 from nano_banana.desktop.window_utils import (
     extract_image_paths,
     fit_window_to_screen,
@@ -45,17 +38,17 @@ class AIModifyDialog(QDialog):
     # 修改完成信号，传递修改后的数据
     modified = pyqtSignal(dict)
     
-    def __init__(self, current_data: dict, parent=None):
+    def __init__(self, studio: Studio, current_data: dict, parent=None):
         super().__init__(parent)
-        self.current_data = current_data
-        self.modified_data = None
-        self.ai_service = AIService()
-        self.config_manager = AIConfigManager()
+        self.studio = studio
+        self.current_data = current_data  # 完整文档（含特别要求、线稿等 overlay）
+        self.prompt_service = PromptService(studio)
         self._is_generating = False
         self._full_content = ""
+        self._result: PromptEvent | None = None
         self.selected_images: List[str] = []
-        self.diff_items = []  # 存储差异项信息
-        self.diff_checkboxes = {}  # 存储路径到复选框的映射
+        self.diff_items: List[Change] = []  # Studio 算好的差异
+        self.diff_checkboxes: List[QCheckBox] = []  # 与 diff_items 一一对应
         self._setup_ui()
         self.setAcceptDrops(True)
 
@@ -505,7 +498,7 @@ class AIModifyDialog(QDialog):
         """开始生成"""
         if self._is_generating:
             # 如果正在生成，点击变为取消
-            self.ai_service.cancel()
+            self.prompt_service.cancel()
             self._is_generating = False
             self._set_generating_ui(False)
             self.status_label.setText("已取消")
@@ -524,7 +517,7 @@ class AIModifyDialog(QDialog):
                 return
         
         # 检查配置
-        if not self.ai_service.is_configured():
+        if not self.prompt_service.is_configured():
             QMessageBox.information(
                 self,
                 "未配置 API",
@@ -542,8 +535,9 @@ class AIModifyDialog(QDialog):
         self.output_display.clear()
         self.compare_display.clear()
         self._full_content = ""
+        self._result = None
         self.diff_items = []
-        self.diff_checkboxes = {}
+        self.diff_checkboxes = []
         # 清空对比widget
         while self.compare_layout.count() > 1:
             item = self.compare_layout.takeAt(0)
@@ -564,21 +558,15 @@ class AIModifyDialog(QDialog):
         """)
         self.result_stack.setCurrentIndex(0)  # 切换到流式输出视图
         
-        # 准备当前JSON数据
-        current_json = json.dumps(self.current_data, ensure_ascii=False, indent=2)
-        
-        # 传递图片路径列表
-        image_paths = self.selected_images.copy() if self.selected_images else None
-        
-        self.ai_service.generate_modify_async(
-            current_json,
+        # 文档原样交给 Studio：哪些部分给模型看、怎么序列化由核心决定
+        self.prompt_service.modify(
+            self.current_data,
             prompt,
-            image_paths=image_paths,
-            on_finished=self._on_generate_finished,
+            self.selected_images,
+            on_result=self._on_result,
             on_error=self._on_generate_error,
             on_progress=self._on_generate_progress,
-            on_stream_chunk=self._on_stream_chunk,
-            on_stream_done=self._on_stream_done,
+            on_chunk=self._on_stream_chunk,
         )
 
     def _set_generating_ui(self, generating: bool):
@@ -611,92 +599,79 @@ class AIModifyDialog(QDialog):
         self.output_display.setTextCursor(cursor)
         self.output_display.ensureCursorVisible()
 
-    def _on_stream_done(self, content: str):
-        """流式传输完成"""
-        self._full_content = content
+    def _on_result(self, event: PromptEvent):
+        """修改结束：event.document 是解析好的新文档，event.changes 是相对原文档的差异。"""
+        self._result = event
+        self._full_content = event.text
         self._is_generating = False
         self._set_generating_ui(False)
-        self.status_label.setText("修改完成")
-        self.status_label.setStyleSheet("color: #4CAF50; font-size: 12px;")
-        
-        # 尝试解析JSON验证有效性
-        try:
-            self.modified_data = json.loads(strip_code_fences(self._full_content))
-            self.apply_btn.setEnabled(True)
-            # 将应用按钮改为蓝色高亮样式
-            self.apply_btn.setObjectName("primaryButton")
-            self.apply_btn.setStyleSheet("""
-                QPushButton {
-                    padding: 10px 24px;
-                    font-size: 14px;
-                    min-width: 100px;
-                    max-width: 100px;
-                }
-                QPushButton#primaryButton {
-                    background-color: #1890ff;
-                    color: white;
-                    border: none;
-                    font-weight: 500;
-                }
-                QPushButton#primaryButton:hover {
-                    background-color: #40a9ff;
-                }
-                QPushButton#primaryButton:disabled {
-                    background-color: #d9d9d9;
-                }
-            """)
-            self.apply_btn.setFocus()
-            # 显示差异对比
-            self._show_differences()
-            # 切换到对比视图
-            self.result_stack.setCurrentIndex(1)
-        except json.JSONDecodeError:
+
+        if event.document is None:
             self.status_label.setText("修改完成，但内容不是有效的JSON")
             self.status_label.setStyleSheet("color: #FF9800; font-size: 12px;")
             self.apply_btn.setEnabled(False)
-
-    def _show_differences(self):
-        """显示修改差异"""
-        if not self.modified_data:
             return
-        
-        # 清空之前的差异项
-        self.diff_items = []
-        self.diff_checkboxes = {}
-        
-        # 收集差异
-        self._compare_dicts(self.current_data, self.modified_data, [])
-        
-        if not self.diff_items:
-            # 没有差异，显示提示信息
+
+        self.status_label.setText("修改完成")
+        self.status_label.setStyleSheet("color: #4CAF50; font-size: 12px;")
+        self.apply_btn.setEnabled(True)
+        # 将应用按钮改为蓝色高亮样式
+        self.apply_btn.setObjectName("primaryButton")
+        self.apply_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 24px;
+                font-size: 14px;
+                min-width: 100px;
+                max-width: 100px;
+            }
+            QPushButton#primaryButton {
+                background-color: #1890ff;
+                color: white;
+                border: none;
+                font-weight: 500;
+            }
+            QPushButton#primaryButton:hover {
+                background-color: #40a9ff;
+            }
+            QPushButton#primaryButton:disabled {
+                background-color: #d9d9d9;
+            }
+        """)
+        self.apply_btn.setFocus()
+        self._show_differences(list(event.changes))
+
+    def _show_differences(self, changes: List[Change]):
+        """显示修改差异"""
+        self.diff_items = changes
+        self.diff_checkboxes = []
+
+        if not changes:
             self.result_stack.setCurrentIndex(2)  # 切换到文本显示
             self.compare_display.setHtml("<h3>没有检测到任何修改</h3>")
             return
-        
+
         # 清空布局（保留最后的stretch）
         while self.compare_layout.count() > 1:
             item = self.compare_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        
-        # 添加标题
+
         title = QLabel("以下字段已被修改，请选择要应用的更新：")
         title.setStyleSheet("font-size: 15px; font-weight: 600; color: #262626; margin-bottom: 8px;")
         self.compare_layout.insertWidget(0, title)
-        
-        # 为每个差异项创建复选框
-        for diff_item in self.diff_items:
-            self._create_diff_item_widget(diff_item)
-        
+
+        for change in changes:
+            self._create_diff_item_widget(change)
+
         # 切换到对比视图
         self.result_stack.setCurrentIndex(1)
 
-    def _create_diff_item_widget(self, diff_item):
+    def _create_diff_item_widget(self, change: Change):
         """为差异项创建带复选框的widget"""
-        path = diff_item['path']
-        diff_type = diff_item['type']
-        old_value = diff_item['old_value']
-        new_value = diff_item['new_value']
+        path = change.label
+        diff_type = change.kind
+        old_value = change.old
+        new_value = change.new
         
         # 创建容器
         item_frame = QFrame()
@@ -727,17 +702,17 @@ class AIModifyDialog(QDialog):
                 height: 18px;
             }
         """)
-        self.diff_checkboxes[path] = checkbox
+        self.diff_checkboxes.append(checkbox)
         header_layout.addWidget(checkbox)
         
         # 根据类型显示不同的图标和颜色
-        if diff_type == 'deleted':
+        if diff_type == 'removed':
             icon_text = "❌"
             path_style = "color: #d32f2f; font-weight: 600;"
         elif diff_type == 'added':
             icon_text = "➕"
             path_style = "color: #2e7d32; font-weight: 600;"
-        else:  # modified
+        else:  # changed
             icon_text = "🔄"
             path_style = "color: #1976d2; font-weight: 600;"
         
@@ -749,7 +724,7 @@ class AIModifyDialog(QDialog):
         item_layout.addLayout(header_layout)
         
         # 显示旧值和新值
-        if diff_type == 'deleted':
+        if diff_type == 'removed':
             old_label = QLabel(f"<span style='text-decoration: line-through; color: #888;'>{self._format_value_for_html(old_value)}</span>")
             old_label.setStyleSheet("font-size: 12px; color: #666; padding-left: 26px;")
             item_layout.addWidget(old_label)
@@ -757,7 +732,7 @@ class AIModifyDialog(QDialog):
             new_label = QLabel(f"<span style='color: #2e7d32;'>{self._format_value_for_html(new_value)}</span>")
             new_label.setStyleSheet("font-size: 12px; color: #666; padding-left: 26px;")
             item_layout.addWidget(new_label)
-        else:  # modified
+        else:  # changed
             old_label = QLabel(f"<span style='text-decoration: line-through; color: #888;'>{self._format_value_for_html(old_value)}</span>")
             old_label.setStyleSheet("font-size: 12px; color: #666; padding-left: 26px;")
             item_layout.addWidget(old_label)
@@ -769,61 +744,6 @@ class AIModifyDialog(QDialog):
         # 插入到stretch之前
         self.compare_layout.insertWidget(self.compare_layout.count() - 1, item_frame)
 
-    def _compare_dicts(self, old_dict, new_dict, key_path):
-        """递归比较两个字典的差异，返回结构化的差异列表"""
-        all_keys = set(old_dict.keys()) | set(new_dict.keys())
-        
-        for key in all_keys:
-            current_key_path = key_path + [key]
-            current_path = ".".join(current_key_path)
-            
-            # 如果键只存在于旧字典中
-            if key not in new_dict:
-                old_value = old_dict[key]
-                self.diff_items.append({
-                    'path': current_path,
-                    'type': 'deleted',
-                    'old_value': old_value,
-                    'new_value': None,
-                    'key_path': current_key_path
-                })
-                continue
-                
-            # 如果键只存在于新字典中
-            if key not in old_dict:
-                new_value = new_dict[key]
-                self.diff_items.append({
-                    'path': current_path,
-                    'type': 'added',
-                    'old_value': None,
-                    'new_value': new_value,
-                    'key_path': current_key_path
-                })
-                continue
-                
-            # 如果键在两个字典中都存在
-            old_value = old_dict[key]
-            new_value = new_dict[key]
-            
-            # 如果都是字典，递归比较
-            if isinstance(old_value, dict) and isinstance(new_value, dict):
-                self._compare_dicts(old_value, new_value, current_key_path)
-            # 如果值不同
-            elif old_value != new_value:
-                self.diff_items.append({
-                    'path': current_path,
-                    'type': 'modified',
-                    'old_value': old_value,
-                    'new_value': new_value,
-                    'key_path': current_key_path
-                })
-
-    def _format_value(self, value):
-        """格式化值用于显示"""
-        if isinstance(value, str) and len(value) > 50:
-            return value[:50] + "..."
-        return str(value)
-    
     def _format_value_for_html(self, value):
         """格式化值用于HTML显示"""
         if isinstance(value, str):
@@ -841,78 +761,6 @@ class AIModifyDialog(QDialog):
         else:
             return str(value)
     
-    def _apply_selected_differences(self, base_data: dict, modified_data: dict) -> dict:
-        """根据选中的差异应用更新"""
-        result = json.loads(json.dumps(base_data))  # 深拷贝
-        
-        for diff_item in self.diff_items:
-            path = diff_item['path']
-            checkbox = self.diff_checkboxes.get(path)
-            
-            # 如果复选框未选中，跳过
-            if not checkbox or not checkbox.isChecked():
-                continue
-            
-            # 获取新值
-            new_value = diff_item['new_value']
-            key_path = diff_item['key_path']
-            
-            # 如果是删除操作，跳过（删除操作需要特殊处理）
-            if diff_item['type'] == 'deleted':
-                continue
-            
-            # 导航到目标位置并设置新值
-            current = result
-            for i, key in enumerate(key_path[:-1]):
-                if key not in current:
-                    # 如果键不存在，创建空字典（用于新增的嵌套结构）
-                    current[key] = {}
-                elif not isinstance(current[key], dict):
-                    # 如果键存在但不是字典，需要替换为字典（这种情况应该很少见）
-                    current[key] = {}
-                current = current[key]
-            
-            # 设置新值
-            final_key = key_path[-1]
-            if diff_item['type'] == 'added' or diff_item['type'] == 'modified':
-                current[final_key] = json.loads(json.dumps(new_value))  # 深拷贝
-        
-        # 处理删除操作
-        for diff_item in self.diff_items:
-            if diff_item['type'] != 'deleted':
-                continue
-            
-            path = diff_item['path']
-            checkbox = self.diff_checkboxes.get(path)
-            
-            if not checkbox or not checkbox.isChecked():
-                continue
-            
-            key_path = diff_item['key_path']
-            
-            # 导航到目标位置并删除
-            current = result
-            try:
-                for i, key in enumerate(key_path[:-1]):
-                    if key not in current or not isinstance(current[key], dict):
-                        break
-                    current = current[key]
-                else:
-                    # 成功导航到父级，删除目标键
-                    final_key = key_path[-1]
-                    if final_key in current:
-                        del current[final_key]
-            except (KeyError, TypeError):
-                # 如果路径不存在或类型不匹配，忽略删除操作
-                pass
-        
-        return result
-
-    def _on_generate_finished(self, data: dict):
-        """生成完成"""
-        self.modified.emit(data)
-        self.accept()
-
     def _on_generate_error(self, error_msg: str):
         """生成出错"""
         self._is_generating = False
@@ -922,31 +770,25 @@ class AIModifyDialog(QDialog):
         QMessageBox.critical(self, "AI生成错误", error_msg)
 
     def _on_apply(self):
-        """应用修改结果"""
+        """把勾选的差异应用到原文档上（未勾选的部分和 overlay 保持原样）。"""
+        if self._result is None or self._result.document is None:
+            QMessageBox.critical(self, "错误", "没有有效的修改数据可应用")
+            return
+        selected = [
+            change
+            for change, checkbox in zip(self.diff_items, self.diff_checkboxes)
+            if checkbox.isChecked()
+        ]
         try:
-            if not self.modified_data:
-                if self._full_content:
-                    self.modified_data = json.loads(strip_code_fences(self._full_content))
-                else:
-                    QMessageBox.critical(self, "错误", "没有有效的修改数据可应用")
-                    return
-            
-            # 如果有差异项，只应用选中的差异
-            if self.diff_items:
-                final_data = self._apply_selected_differences(self.current_data, self.modified_data)
-                self.modified.emit(final_data)
-            else:
-                # 没有差异，直接应用全部
-                self.modified.emit(self.modified_data)
-            
-            self.accept()
-        except json.JSONDecodeError as e:
-            QMessageBox.critical(self, "错误", f"JSON格式错误:\n{str(e)}")
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"应用修改时出错:\n{str(e)}")
+            final_data = self.studio.apply_changes(self.current_data, selected)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "错误", f"应用修改时出错:\n{exc}")
+            return
+        self.modified.emit(final_data)
+        self.accept()
 
     def _on_cancel(self):
         """取消/关闭对话框"""
         if self._is_generating:
-            self.ai_service.cancel()
+            self.prompt_service.cancel()
         self.reject()

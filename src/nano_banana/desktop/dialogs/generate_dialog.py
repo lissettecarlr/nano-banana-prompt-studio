@@ -1,5 +1,4 @@
-"""AI 对话框。"""
-import json
+"""AI 生成提示词对话框。"""
 import os
 from typing import List
 from PyQt6.QtWidgets import (
@@ -7,30 +6,21 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QTextEdit,
     QPushButton,
     QFrame,
     QWidget,
     QMessageBox,
-    QSplitter,
-    QStackedWidget,
     QFileDialog,
     QListWidget,
     QListWidgetItem,
-    QCheckBox,
-    QScrollArea,
-    QComboBox,
-    QTabWidget,
 )
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QFont, QIcon, QKeySequence, QPixmap
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QPixmap
 
-from nano_banana.core.chat import strip_code_fences
-from nano_banana.core.config import AIConfigManager
-from nano_banana.core.images.provider_config import IMAGE_PROVIDER_META
-from nano_banana.desktop.ai_service import AIService
+from nano_banana.core import PromptEvent, Studio
 from nano_banana.desktop.dialogs.config_dialog import UnifiedAIConfigDialog
+from nano_banana.desktop.workers import PromptService
 from nano_banana.desktop.window_utils import (
     extract_image_paths,
     fit_window_to_screen,
@@ -46,12 +36,13 @@ class AIGenerateDialog(QDialog):
     # 生成完成信号，传递生成的数据
     generated = pyqtSignal(dict)
     
-    def __init__(self, parent=None):
+    def __init__(self, studio: Studio, parent=None):
         super().__init__(parent)
-        self.ai_service = AIService()
-        self.config_manager = AIConfigManager()
+        self.studio = studio
+        self.prompt_service = PromptService(studio)
         self._is_generating = False
         self._full_content = ""
+        self._result: PromptEvent | None = None
         self.selected_images: List[str] = []
         self._setup_ui()
         self.setAcceptDrops(True)
@@ -457,21 +448,21 @@ class AIGenerateDialog(QDialog):
 
     def _show_config(self):
         """打开独立的 AI 对话配置页。"""
-        dialog = UnifiedAIConfigDialog(self, initial_tab="chat")
+        dialog = UnifiedAIConfigDialog(self.studio, self, initial_tab="chat")
         dialog.exec()
     
     def _on_generate(self):
         """开始生成"""
         if self._is_generating:
             # 如果正在生成，点击变为取消
-            self.ai_service.cancel()
+            self.prompt_service.cancel()
             self._is_generating = False
             self._set_generating_ui(False)
             self.status_label.setText("已取消")
             return
         
         # 检查配置
-        if not self.ai_service.is_configured():
+        if not self.prompt_service.is_configured():
             reply = QMessageBox.question(
                 self,
                 "未配置 API",
@@ -505,19 +496,16 @@ class AIGenerateDialog(QDialog):
             }
         """)
         
-        # 传递图片路径列表
-        image_paths = self.selected_images.copy() if self.selected_images else None
-        
-        self.ai_service.generate_async(
+        self._result = None
+        self.prompt_service.generate(
             prompt,
-            image_paths=image_paths,
-            on_finished=self._on_generate_finished,
+            self.selected_images,
+            on_result=self._on_result,
             on_error=self._on_generate_error,
             on_progress=self._on_generate_progress,
-            on_stream_chunk=self._on_stream_chunk,
-            on_stream_done=self._on_stream_done,
+            on_chunk=self._on_stream_chunk,
         )
-    
+
     def _set_generating_ui(self, generating: bool):
         """设置生成中的UI状态"""
         self.prompt_input.setReadOnly(generating)
@@ -549,13 +537,18 @@ class AIGenerateDialog(QDialog):
         scrollbar = self.output_display.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
     
-    def _on_stream_done(self, full_content: str):
-        """流式完成"""
+    def _on_result(self, event: PromptEvent):
+        """生成结束：event.document 是 Studio 解析并升级好的文档。"""
         self._is_generating = False
         self._set_generating_ui(False)
-        self._full_content = full_content
-        self.status_label.setText("生成完成")
-        self.status_label.setStyleSheet("color: #4CAF50; font-size: 12px;")
+        self._result = event
+        self._full_content = event.text
+        if event.document is None:
+            self.status_label.setText("生成完成，但内容不是有效的JSON")
+            self.status_label.setStyleSheet("color: #FF9800; font-size: 12px;")
+        else:
+            self.status_label.setText("生成完成")
+            self.status_label.setStyleSheet("color: #4CAF50; font-size: 12px;")
         self.apply_btn.setEnabled(True)
         # 将应用按钮改为蓝色高亮样式
         self.apply_btn.setObjectName("primaryButton")
@@ -579,12 +572,7 @@ class AIGenerateDialog(QDialog):
                 background-color: #d9d9d9;
             }
         """)
-    
-    def _on_generate_finished(self, data: dict):
-        """生成完成（JSON解析后）"""
-        # 流式模式下这个不会被调用
-        pass
-    
+
     def _on_generate_error(self, error: str):
         """生成错误"""
         self._is_generating = False
@@ -594,35 +582,28 @@ class AIGenerateDialog(QDialog):
     
     def _on_apply(self):
         """应用生成的内容到表单"""
-        content = self._full_content.strip()
-        
-        if not content:
+        if self._result is None or not self._full_content.strip():
             QMessageBox.warning(self, "提示", "没有可应用的内容")
             return
-        
-        # 清理代码块标记
-        content = strip_code_fences(content)
-        
-        # 解析JSON
-        try:
-            result = json.loads(content)
-            self.generated.emit(result)
-            self.accept()
-        except json.JSONDecodeError as e:
+        if self._result.document is None:
             QMessageBox.warning(
-                self, 
-                "JSON解析失败", 
-                f"AI返回的内容不是有效的JSON格式:\n{str(e)}\n\n你可以手动复制内容进行修改。"
+                self,
+                "JSON解析失败",
+                f"AI返回的内容不是有效的JSON格式:\n{self._result.parse_error}\n\n"
+                "你可以手动复制内容进行修改。",
             )
-    
+            return
+        self.generated.emit(self._result.document)
+        self.accept()
+
     def _on_cancel(self):
         """关闭按钮点击"""
         if self._is_generating:
-            self.ai_service.cancel()
+            self.prompt_service.cancel()
         self.reject()
     
     def closeEvent(self, event):
         """关闭事件"""
         if self._is_generating:
-            self.ai_service.cancel()
+            self.prompt_service.cancel()
         super().closeEvent(event)

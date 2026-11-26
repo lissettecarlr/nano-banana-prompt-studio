@@ -1,9 +1,6 @@
-"""
-Nano Banana 图片生成工具
-AI绘画提示词可视化编辑工具
+"""桌面端启动入口。
 
-使用方法:
-    python main.py
+    python -m nano_banana.desktop
 """
 import sys
 
@@ -11,7 +8,8 @@ from PyQt6.QtWidgets import QApplication, QStyleFactory
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPalette, QColor
 
-from nano_banana.desktop.app import PromptGeneratorApp
+from nano_banana.core import Studio
+from nano_banana.desktop.main_window import MainWindow
 
 
 def setup_light_palette(app: QApplication):
@@ -27,7 +25,6 @@ def setup_light_palette(app: QApplication):
     text_secondary = QColor("#757575")
     text_disabled = QColor("#9E9E9E")
     accent = QColor("#B8956B")
-    selection_bg = QColor("#FBF7F2")
     
     # 窗口背景
     palette.setColor(QPalette.ColorRole.Window, white)
@@ -100,8 +97,8 @@ def main():
     font = QFont("Microsoft YaHei", 10)
     app.setFont(font)
 
-    # 创建并显示主窗口
-    window = PromptGeneratorApp()
+    # 整个进程只有一个 Studio，所有窗口/对话框共用
+    window = MainWindow(Studio.default())
     window.show()
 
     sys.exit(app.exec())

@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction
 
+from nano_banana.desktop.styles import MENU_STYLE
+
 
 class NoScrollComboBox(QComboBox):
     """禁用滚轮的下拉框"""
@@ -26,11 +28,11 @@ class ComboInput(QWidget):
     options_changed = pyqtSignal(str, list)  # field_name, new_options
 
     def __init__(
-        self, field_name: str, options: list = None, parent=None, yaml_handler=None
+        self, field_name: str, options: list = None, parent=None, option_store=None
     ):
         super().__init__(parent)
         self.field_name = field_name
-        self.yaml_handler = yaml_handler
+        self.option_store = option_store
         self._options = options or []
 
         self._setup_ui()
@@ -75,25 +77,7 @@ class ComboInput(QWidget):
 
     def _show_manage_menu(self):
         menu = QMenu(self)
-        menu.setStyleSheet(
-            """
-            QMenu {
-                background-color: #FFFFFF;
-                border: 1px solid #E0E0E0;
-                border-radius: 6px;
-                padding: 4px;
-            }
-            QMenu::item {
-                padding: 8px 24px 8px 12px;
-                color: #2B2B2B;
-                border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #F7F7F7;
-                color: #2B2B2B;
-            }
-        """
-        )
+        menu.setStyleSheet(MENU_STYLE)
 
         # 添加当前输入到选项
         add_current = QAction("保存当前输入为选项", self)
@@ -133,8 +117,8 @@ class ComboInput(QWidget):
         self._options.append(current_text)
         self.combo.addItem(current_text)
 
-        if self.yaml_handler:
-            self.yaml_handler.add_option(self.field_name, current_text)
+        if self.option_store:
+            self.option_store.add_option(self.field_name, current_text)
 
         self.options_changed.emit(self.field_name, self._options)
 
@@ -149,8 +133,8 @@ class ComboInput(QWidget):
             self._options.append(text)
             self.combo.addItem(text)
 
-            if self.yaml_handler:
-                self.yaml_handler.add_option(self.field_name, text)
+            if self.option_store:
+                self.option_store.add_option(self.field_name, text)
 
             self.options_changed.emit(self.field_name, self._options)
 
@@ -168,8 +152,8 @@ class ComboInput(QWidget):
             if idx >= 0:
                 self.combo.removeItem(idx)
 
-            if self.yaml_handler:
-                self.yaml_handler.remove_option(self.field_name, option)
+            if self.option_store:
+                self.option_store.remove_option(self.field_name, option)
 
             self.options_changed.emit(self.field_name, self._options)
 

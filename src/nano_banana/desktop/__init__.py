@@ -1,5 +1,1 @@
-"""桌面端包。"""
-
-from nano_banana.desktop.app import PromptGeneratorApp
-
-__all__ = ["PromptGeneratorApp"]
+"""桌面交互口：PyQt6。只依赖 nano_banana.core 的公开入口。"""

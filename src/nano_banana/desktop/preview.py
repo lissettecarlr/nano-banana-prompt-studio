@@ -1,7 +1,7 @@
 """预览相关控件，从主窗体拆出。"""
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
 class ClickableLabel(QLabel):
     """可点击的标签，用于图片预览"""

@@ -15,20 +15,6 @@ from PyQt6.QtWidgets import (
 )
 
 
-def normalize_negative_prompt(value) -> str:
-    """将当前字符串或旧版分组数据转换为可编辑文本。"""
-    if isinstance(value, str):
-        return value
-    if not isinstance(value, dict):
-        return ""
-
-    values = []
-    for key in ("禁止元素", "禁止风格"):
-        item = value.get(key, [])
-        values.extend(item if isinstance(item, list) else [item])
-    return ", ".join(str(item) for item in values if item)
-
-
 class TagTextInput(QWidget):
     """独立管理标签，并通过点击标签填充自由文本。"""
 
@@ -36,11 +22,11 @@ class TagTextInput(QWidget):
     options_changed = pyqtSignal(str, list)
 
     def __init__(
-        self, field_name: str, options: list | None = None, parent=None, yaml_handler=None
+        self, field_name: str, options: list | None = None, parent=None, option_store=None
     ):
         super().__init__(parent)
         self.field_name = field_name
-        self.yaml_handler = yaml_handler
+        self.option_store = option_store
         self._options = list(options or [])
         self._tag_widgets = {}
         self._setup_ui()
@@ -174,8 +160,8 @@ class TagTextInput(QWidget):
         self._options.append(value)
         self._add_tag_widget(value)
         self.tag_input.clear()
-        if self.yaml_handler:
-            self.yaml_handler.add_option(self.field_name, value)
+        if self.option_store:
+            self.option_store.add_option(self.field_name, value)
         self.options_changed.emit(self.field_name, list(self._options))
 
     def _delete_tag(self, value: str):
@@ -186,8 +172,8 @@ class TagTextInput(QWidget):
         tag_widget = self._tag_widgets.pop(value)
         self.tags_layout.removeWidget(tag_widget)
         tag_widget.deleteLater()
-        if self.yaml_handler:
-            self.yaml_handler.remove_option(self.field_name, value)
+        if self.option_store:
+            self.option_store.remove_option(self.field_name, value)
         self.options_changed.emit(self.field_name, list(self._options))
 
     def get_value(self) -> str:

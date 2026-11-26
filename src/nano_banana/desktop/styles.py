@@ -783,3 +783,49 @@ QFrame {{
         stop:0 #6D28D9, stop:1 #7E22CE);
 }}
 """
+
+# 弹出菜单（预设管理、选项管理等共用）
+MENU_STYLE = """
+    QMenu {
+        background-color: #FFFFFF;
+        border: 1px solid #E0E0E0;
+        border-radius: 6px;
+        padding: 4px;
+    }
+    QMenu::item {
+        padding: 8px 24px 8px 12px;
+        color: #2B2B2B;
+        border-radius: 4px;
+    }
+    QMenu::item:selected {
+        background-color: #F7F7F7;
+        color: #2B2B2B;
+    }
+    QMenu::separator {
+        height: 1px;
+        background-color: #EAEAEA;
+        margin: 4px 8px;
+    }
+"""
+
+# 表单里的多行输入（特别要求、线稿提示词）
+PLAIN_TEXT_EDIT_STYLE = """
+    QTextEdit {
+        padding: 8px;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+        background-color: white;
+        font-size: 12px;
+    }
+    QTextEdit:focus {
+        border-color: #40a9ff;
+    }
+"""
+
+CARD_FRAME_STYLE = """
+    QFrame#%s {
+        background-color: #ffffff;
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+    }
+"""
