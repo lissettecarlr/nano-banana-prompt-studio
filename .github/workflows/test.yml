@@ -1,0 +1,76 @@
+name: ✅ Test
+
+on:
+  push:
+    branches: [ "master", "test", "develop" ]
+  pull_request:
+    branches: [ "master", "test", "develop" ]
+
+jobs:
+  test:
+    name: 🧪 pytest + lint (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.10", "3.12" ]
+
+    env:
+      PYTHONIOENCODING: utf-8
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: 🟢 Set up Node (浏览器端 SSE 解析器测试)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 🐧 Install Qt runtime deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon0 libdbus-1-3 libxcb-cursor0 libfontconfig1
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[desktop,web,dev]"
+
+      - name: 🧹 Ruff
+        run: ruff check src tests
+
+      - name: 🧱 Architecture contracts
+        run: lint-imports
+
+      - name: 🧪 Pytest
+        run: pytest -q
+
+  core-only:
+    # 核心必须在不装 PyQt / Flask 的环境里可用（脚本、插件的使用方式）
+    name: 🧩 core without UI deps
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+
+      - name: 📦 Install core only
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest
+
+      - name: 🧪 Pytest (core)
+        run: pytest -q tests/core tests/test_architecture.py

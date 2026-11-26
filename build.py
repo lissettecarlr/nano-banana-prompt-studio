@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 APP_NAME = 'NanoBananaPromptStudio'
+ENTRY_SCRIPT = 'scripts/desktop_entry.py'
 
 
 def clean_build_dirs():
@@ -56,7 +57,8 @@ def build_exe():
     
     # PyInstaller 参数
     pyinstaller_args = [
-        'src/main.py',                          # 入口文件
+        ENTRY_SCRIPT,                           # 入口文件
+        '--paths=src',                          # 让 PyInstaller 找到 nano_banana 包
         f'--name={APP_NAME}',                   # 生成的exe名称
         '--windowed',                            # 无控制台窗口 (GUI应用)
         '--onedir',                              # 打包成目录形式 (比单文件更快启动)
@@ -64,9 +66,10 @@ def build_exe():
         '--clean',                               # 清理临时文件
         '--icon=images/logo.png',               # 应用图标
         
-        # 添加数据文件（注意：不要打包 ai_config.yaml，里面有密钥）
-        f'--add-data=src/config/options.yaml{os.pathsep}config',  # 只打包 options.yaml
-        f'--add-data=src/presets{os.pathsep}presets',             # 预设目录
+        # 随包发布的只读数据：schema、默认选项、内置预设。
+        # 用户数据（config/ai_config.yaml、presets/）在首次运行时生成在 exe 同级目录，不打包。
+        f'--add-data=src/nano_banana/core/prompt/schema.yaml{os.pathsep}nano_banana/core/prompt',
+        f'--add-data=src/nano_banana/builtin{os.pathsep}nano_banana/builtin',
         f'--add-data=images/logo.png{os.pathsep}images',          # logo图片
         
         # 隐藏导入（确保所有模块都被包含）
@@ -74,14 +77,14 @@ def build_exe():
         '--hidden-import=PyQt6.QtCore',
         '--hidden-import=PyQt6.QtGui',
         '--hidden-import=yaml',
-        '--hidden-import=pyperclip',
         '--hidden-import=PIL.Image',
-        '--hidden-import=nano_banana',
-        '--hidden-import=nano_banana.core',
-        '--hidden-import=nano_banana.core.images',
-        '--hidden-import=nano_banana.desktop',
-        '--collect-all=nano_banana',
-        f'--add-data=src/nano_banana/core/schema.yaml{os.pathsep}nano_banana/core',
+        # core 的门面和渠道注册表都是惰性 import（importlib），静态分析看不到，必须整包收集
+        '--collect-submodules=nano_banana.core',
+        '--collect-submodules=nano_banana.desktop',
+        # Web 端不进桌面包
+        '--exclude-module=nano_banana.web',
+        '--exclude-module=flask',
+        '--exclude-module=flask_cors',
         '--hidden-import=openai.resources',
         '--hidden-import=openai.resources.chat',
         '--hidden-import=openai.resources.chat.completions',
@@ -311,25 +314,11 @@ def create_output():
                 else:
                     shutil.copy2(item, dest)
     
-    # 确保 config 和 presets 目录存在且可写
-    config_dir = output_dir / 'config'
-    presets_dir = output_dir / 'presets'
+    # 用户数据目录（config/、presets/）由程序首次运行时在 exe 同级创建：
+    # 内置预设从包内的 builtin/ 播种，默认选项直接读 builtin/options.yaml。
+    # 这里不再往 output 里放任何可写数据，覆盖升级不会冲掉用户的预设和配置。
     images_dir = output_dir / 'images'
-    
-    config_dir.mkdir(exist_ok=True)
-    presets_dir.mkdir(exist_ok=True)
     images_dir.mkdir(exist_ok=True)
-    
-    # 复制配置文件（如果不存在）
-    config_src = Path('src/config/options.yaml')
-    config_dst = config_dir / 'options.yaml'
-    if config_src.exists() and not config_dst.exists():
-        shutil.copy2(config_src, config_dst)
-    
-    # 复制预设文件
-    presets_src = Path('src/presets')
-    if presets_src.exists():
-        shutil.copytree(presets_src, presets_dir, dirs_exist_ok=True)
     
     # 复制 logo
     logo_src = Path('images/logo.png')
@@ -365,7 +354,7 @@ def main():
     print("=" * 50)
     
     # 确保在项目根目录运行
-    if not os.path.exists('src/main.py'):
+    if not os.path.exists(ENTRY_SCRIPT):
         print("错误: 请在项目根目录运行此脚本")
         sys.exit(1)
     

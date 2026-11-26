@@ -2,9 +2,9 @@ name: 🚀 Build CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master", "test" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master", "test" ]
 
 jobs:
   build-matrix:

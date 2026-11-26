@@ -9,6 +9,7 @@ description = "结构化 AI 绘画提示词编辑器 + 多渠道生图工作台"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
+# 核心依赖：只装这些就能 `from nano_banana.core import Studio`（无 UI、无 Web 框架）
 dependencies = [
     "PyYAML>=6.0.1",
     "openai>=1.40.0,<2.0.0",
@@ -21,7 +22,6 @@ dependencies = [
 [project.optional-dependencies]
 desktop = [
     "PyQt6>=6.6.0",
-    "pyperclip>=1.8.2",
 ]
 web = [
     "flask==3.0.0",
@@ -29,6 +29,8 @@ web = [
 ]
 dev = [
     "pytest>=7.0.0",
+    "ruff>=0.6.0",
+    "import-linter>=2.0",
 ]
 build = [
     "pyinstaller",
@@ -45,9 +47,81 @@ where = ["src"]
 include = ["nano_banana*"]
 
 [tool.setuptools.package-data]
-nano_banana = ["core/schema.yaml"]
+nano_banana = [
+    "core/prompt/schema.yaml",
+    "builtin/*.yaml",
+    "builtin/presets/*.json",
+    "builtin/presets/**/*.json",
+    "web/static/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
-norecursedirs = [".git", ".pytest_cache", "build", "dist", "output"]
+pythonpath = ["src", "tests"]
+norecursedirs = [".git", ".pytest_cache", ".venv", "build", "dist", "output", "data"]
+
+[tool.ruff]
+line-length = 110
+src = ["src", "tests"]
+extend-exclude = ["build.py"]
+
+[tool.ruff.lint]
+# 只开「一定是 bug」的规则；风格问题不在 CI 里卡人
+select = ["E9", "F"]
+
+# ---------------------------------------------------------------------------
+# 架构边界（lint-imports）。说明见 README「架构」一节和 tests/test_architecture.py。
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "nano_banana"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "ports depend on core, never on each other"
+type = "layers"
+layers = [
+    "nano_banana.desktop | nano_banana.web",
+    "nano_banana.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "ports only use the Studio facade and core.prompt"
+type = "forbidden"
+source_modules = ["nano_banana.desktop", "nano_banana.web"]
+forbidden_modules = [
+    "nano_banana.core.studio",
+    "nano_banana.core.storage",
+    "nano_banana.core.llm",
+    "nano_banana.core.images",
+    "nano_banana.core.media",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "core layering: studio > storage | llm > images > prompt | media"
+type = "layers"
+containers = ["nano_banana.core"]
+layers = [
+    "studio",
+    "storage | llm",
+    "images",
+    "prompt | media",
+]
+
+[[tool.importlinter.contracts]]
+name = "core has no UI or web framework dependency"
+type = "forbidden"
+source_modules = ["nano_banana.core"]
+forbidden_modules = ["PyQt6", "flask", "flask_cors"]
+
+[[tool.importlinter.contracts]]
+name = "web does not import Qt"
+type = "forbidden"
+source_modules = ["nano_banana.web"]
+forbidden_modules = ["PyQt6"]
+
+[[tool.importlinter.contracts]]
+name = "desktop does not import the web framework"
+type = "forbidden"
+source_modules = ["nano_banana.desktop"]
+forbidden_modules = ["flask", "flask_cors"]

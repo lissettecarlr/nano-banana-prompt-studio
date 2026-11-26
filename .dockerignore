@@ -21,11 +21,21 @@ ENV
 htmlcov
 *.egg-info
 
-# 本地 AI 配置（含 API Key，勿打进镜像）
-src/config/ai_config.yaml
+# 本地用户数据（含 API Key，勿打进镜像）
+data
+src/config
+src/presets
 src/config.yaml
 .env
 .env.*
+
+# Web 镜像不需要
+tests
+scripts
+images
+build.py
+.ruff_cache
+.import_linter_cache
 
 # 桌面端构建产物（Web 镜像不需要）
 build

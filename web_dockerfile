@@ -1,27 +1,23 @@
-# 使用 Python 3.10 slim 版本作为基础镜像
+# Web 端镜像：只装核心 + Flask，不装 PyQt
 FROM python:3.10-slim
 
-# 设置工作目录
 WORKDIR /app
 
-# 设置环境变量
-# 防止 Python 生成 .pyc 文件
-ENV PYTHONDONTWRITEBYTECODE=1
-# 确保 Python 输出不被缓冲
-ENV PYTHONUNBUFFERED=1
-# 添加 src 到 PYTHONPATH，安装可编辑包后也可省略
-ENV PYTHONPATH=/app/src
+# NANO_BANANA_HOME：可写数据目录（配置、预设），挂一个卷到 /data 即可持久化
+# NANO_BANANA_HOST：容器内必须监听 0.0.0.0，端口映射才能访问到
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    NANO_BANANA_HOME=/data \
+    NANO_BANANA_HOST=0.0.0.0 \
+    NANO_BANANA_PORT=5000
 
-# 复制项目文件
 COPY pyproject.toml README.md /app/
 COPY src /app/src
 
-# 安装 Web 依赖（不装 PyQt）
-RUN pip install --no-cache-dir -e ".[web]"
+# 非 editable 安装：静态前端、schema、内置预设都作为 package-data 装进 site-packages
+RUN pip install --no-cache-dir ".[web]"
 
-
-# 暴露端口
+VOLUME ["/data"]
 EXPOSE 5000
 
-# 启动命令
-CMD ["python", "src/web/app.py"]
+CMD ["python", "-m", "nano_banana.web"]

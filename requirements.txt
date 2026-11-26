@@ -1,5 +1,5 @@
 # 依赖由 pyproject.toml extras 统一管理，勿在此钉版本。
-#   pip install -e ".[desktop]"
-#   pip install -e ".[web]"
-#   pip install -e ".[dev]"
+#   pip install -e ".[desktop]"          桌面端
+#   pip install -e ".[web]"              Web 端
+#   pip install -e ".[desktop,web,dev]"  开发（pytest / ruff / import-linter）
 -e .[desktop]

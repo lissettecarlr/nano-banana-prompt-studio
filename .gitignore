@@ -6,6 +6,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 build/
 dist/
@@ -22,8 +23,18 @@ CONTRIBUTING.md
 *.swp
 *.swo
 
-# 配置文件（包含敏感信息）
+# 用户数据：配置（含 API Key）、自定义选项、预设
+/data/
+# 重构前的数据位置，保留忽略规则以免旧文件被误提交
+src/config/
+src/presets/
 src/config.yaml
+.env
+.env.*
+
+# 工具缓存
+.ruff_cache/
+.import_linter_cache/
 
 # 测试
 .pytest_cache/
