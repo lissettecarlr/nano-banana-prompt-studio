@@ -1,5 +1,5 @@
-"""Web 端。"""
+"""Web 交互口：Flask + 静态前端。"""
 
-from nano_banana.web.app import app, create_app, main
+from nano_banana.web.app import create_app, main
 
-__all__ = ["app", "create_app", "main"]
+__all__ = ["create_app", "main"]

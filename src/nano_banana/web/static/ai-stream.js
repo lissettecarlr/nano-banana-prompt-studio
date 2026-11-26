@@ -4,57 +4,12 @@
 let currentAiMode = null; // 'generate' or 'modify'
 let aiUploadedImages = []; // Local images for AI modal
 let aiAbortController = null;
-let latestDiffChanges = []; // Store diff changes
+let latestDiffChanges = []; // 服务端算好的差异：[{ path, label, kind, old, new }]
+let latestAiDocument = null; // 服务端解析并升级后的文档；解析失败时为 null
 
 // ========================================
-// Diff Utils
+// Diff View
 // ========================================
-function isObject(item) {
-    return (item && typeof item === 'object' && !Array.isArray(item));
-}
-
-function diffJson(obj1, obj2, path = []) {
-    let changes = [];
-    
-    // Union of keys
-    const keys1 = isObject(obj1) ? Object.keys(obj1) : [];
-    const keys2 = isObject(obj2) ? Object.keys(obj2) : [];
-    const allKeys = new Set([...keys1, ...keys2]);
-
-    for (const key of allKeys) {
-        const val1 = isObject(obj1) ? obj1[key] : undefined;
-        const val2 = isObject(obj2) ? obj2[key] : undefined;
-        const currentPath = [...path, key];
-
-        if (isObject(val1) && isObject(val2)) {
-            changes = changes.concat(diffJson(val1, val2, currentPath));
-        } else if (Array.isArray(val1) && Array.isArray(val2)) {
-            // Simple array comparison
-            if (JSON.stringify(val1) !== JSON.stringify(val2)) {
-                changes.push({
-                    path: currentPath,
-                    pathStr: currentPath.join(' > '),
-                    oldValue: val1,
-                    newValue: val2
-                });
-            }
-        } else if (val1 !== val2) {
-             // Ignore if both are empty/null/undefined equivalent
-             const v1Empty = val1 === null || val1 === undefined || val1 === '';
-             const v2Empty = val2 === null || val2 === undefined || val2 === '';
-             if (v1Empty && v2Empty) continue;
-
-             changes.push({
-                path: currentPath,
-                pathStr: currentPath.join(' > '),
-                oldValue: val1 === undefined ? '(空)' : val1,
-                newValue: val2 === undefined ? '(删除)' : val2
-             });
-        }
-    }
-    return changes;
-}
-
 function renderDiff(changes) {
     elements.aiDiffContainer.innerHTML = '';
     latestDiffChanges = changes;
@@ -81,7 +36,7 @@ function renderDiff(changes) {
         
         const label = document.createElement('label');
         label.htmlFor = `diff-check-${idx}`;
-        label.textContent = change.pathStr;
+        label.textContent = change.label;
         label.style.marginLeft = '8px';
         label.style.fontWeight = 'bold';
         label.style.cursor = 'pointer';
@@ -93,19 +48,18 @@ function renderDiff(changes) {
         content.style.marginLeft = '24px';
         content.style.fontSize = '13px';
 
-        // Format values for display
-        const formatVal = (v) => {
-            if (Array.isArray(v)) return JSON.stringify(v);
-            return v;
+        const formatVal = (v, emptyText) => {
+            if (v === null || v === undefined || v === '') return emptyText;
+            return typeof v === 'object' ? JSON.stringify(v) : v;
         };
 
         const oldDiv = document.createElement('div');
         oldDiv.className = 'diff-old';
-        oldDiv.textContent = `旧: ${formatVal(change.oldValue)}`;
-        
+        oldDiv.textContent = `旧: ${formatVal(change.old, '(空)')}`;
+
         const newDiv = document.createElement('div');
         newDiv.className = 'diff-new';
-        newDiv.textContent = `新: ${formatVal(change.newValue)}`;
+        newDiv.textContent = `新: ${formatVal(change.new, change.kind === 'removed' ? '(删除)' : '(空)')}`;
 
         content.appendChild(oldDiv);
         content.appendChild(newDiv);
@@ -174,6 +128,7 @@ function openAiModal(mode) {
     aiUploadedImages.length = 0;
     renderAiUploadedImages();
     latestDiffChanges = [];
+    latestAiDocument = null;
 
     // Reset View
     elements.aiDiffContainer.style.display = 'none';
@@ -197,10 +152,15 @@ function openAiModal(mode) {
 
 async function handleAiExecute() {
     const prompt = elements.aiPromptInput.value.trim();
-    if (!prompt) {
+    const imagesOnly = currentAiMode === 'generate' && aiUploadedImages.length > 0;
+    if (!prompt && !imagesOnly) {
         showToast('请输入内容', 'warning');
         return;
     }
+    latestDiffChanges = [];
+    latestAiDocument = null;
+    elements.aiDiffContainer.style.display = 'none';
+    elements.aiResponsePreview.style.display = 'block';
 
     // UI Update
     elements.aiResponsePreview.value = '';
@@ -233,7 +193,7 @@ async function handleAiExecute() {
         if (currentAiMode === 'generate') {
             body.prompt = prompt;
         } else {
-            body.current_data = elements.jsonPreviewText.value;
+            body.document = getFormData();
             body.modify_request = prompt;
         }
 
@@ -275,39 +235,12 @@ async function handleAiExecute() {
                         elements.aiModalApplyBtn.style.display = 'inline-block';
                         elements.aiModalExecuteBtn.style.display = 'inline-block';
 
-                        // Logic for Modify Mode: Show Diff
-                        if (currentAiMode === 'modify') {
-                            try {
-                                let jsonText = fullContent;
-                                // Try to extract JSON from Markdown
-                                const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
-                                if (jsonMatch) {
-                                    jsonText = jsonMatch[1];
-                                } else {
-                                     const firstBrace = jsonText.indexOf('{');
-                                     const lastBrace = jsonText.lastIndexOf('}');
-                                     if (firstBrace !== -1 && lastBrace !== -1) {
-                                         jsonText = jsonText.substring(firstBrace, lastBrace + 1);
-                                     }
-                                }
-                                
-                                const newData = JSON.parse(jsonText);
-                                const currentData = getFormData();
-                                const changes = diffJson(currentData, newData);
-                                
-                                renderDiff(changes);
-                                
-                                // Switch View
-                                elements.aiResponsePreview.style.display = 'none';
-                                elements.aiDiffContainer.style.display = 'block';
-                                
-                            } catch (e) {
-                                console.error('Diff calculation failed:', e);
-                                showToast('对比生成失败，显示原始结果', 'warning');
-                                // Fallback to raw view
-                                elements.aiResponsePreview.style.display = 'block';
-                                elements.aiDiffContainer.style.display = 'none';
-                            }
+                        if (!latestAiDocument) {
+                            showToast('AI 返回的内容无法解析，可手动修正后再应用', 'warning');
+                        } else if (currentAiMode === 'modify') {
+                            renderDiff(latestDiffChanges);
+                            elements.aiResponsePreview.style.display = 'none';
+                            elements.aiDiffContainer.style.display = 'block';
                         }
                     } else {
                         const event = SseStream.parseSseJsonEvent(dataStr);
@@ -315,6 +248,10 @@ async function handleAiExecute() {
                             if (event.status === 'thinking') {
                                 streamStatusText = thinkingStatusText;
                             }
+                        } else if (event.type === 'result') {
+                            // 解析、旧格式兼容、差异计算都由服务端完成
+                            latestAiDocument = event.result.document || null;
+                            latestDiffChanges = event.result.changes || [];
                         } else if (event.type === 'content') {
                             streamStatusText = '';
                             fullContent += event.content;
@@ -355,65 +292,38 @@ function handleAiStop() {
 }
 
 function applyAiResult() {
-    try {
-        // If in Modify Mode and Diff View is active
-        if (currentAiMode === 'modify' && elements.aiDiffContainer.style.display !== 'none') {
-            const checkboxes = elements.aiDiffContainer.querySelectorAll('input[type="checkbox"]');
-            const data = getFormData(); // Start with current data
-            
-            let appliedCount = 0;
-            checkboxes.forEach(cb => {
-                if (cb.checked) {
-                    const idx = parseInt(cb.dataset.idx);
-                    const change = latestDiffChanges[idx];
-                    if (change) {
-                        // Apply change to data object
-                        // Helper to set deep value
-                        let current = data;
-                        for (let i = 0; i < change.path.length - 1; i++) {
-                            const key = change.path[i];
-                            if (!current[key]) current[key] = {};
-                            current = current[key];
-                        }
-                        const lastKey = change.path[change.path.length - 1];
-                        
-                        if (change.newValue === undefined) {
-                            delete current[lastKey];
-                        } else {
-                            current[lastKey] = change.newValue;
-                        }
-                        appliedCount++;
-                    }
-                }
-            });
-            
-            setFormData(data);
-            showToast(`已应用 ${appliedCount} 项更改`, 'success');
-            elements.aiModal.classList.remove('active');
+    // 修改模式：只应用勾选的差异
+    if (currentAiMode === 'modify' && elements.aiDiffContainer.style.display !== 'none') {
+        const data = getFormData();
+        let appliedCount = 0;
+        elements.aiDiffContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            const change = latestDiffChanges[parseInt(cb.dataset.idx, 10)];
+            if (!cb.checked || !change) return;
+            if (change.kind === 'removed') {
+                window.PromptDoc.deleteAtPath(data, change.path);
+            } else {
+                window.PromptDoc.setAtPath(data, change.path, change.new);
+            }
+            appliedCount++;
+        });
+
+        setFormData(data);
+        showToast(`已应用 ${appliedCount} 项更改`, 'success');
+        elements.aiModal.classList.remove('active');
+        return;
+    }
+
+    let aiDocument = latestAiDocument;
+    if (!aiDocument) {
+        // 服务端没能解析出文档：允许用户在文本框里手动修正后再应用
+        try {
+            aiDocument = JSON.parse(elements.aiResponsePreview.value);
+        } catch (e) {
+            showToast('JSON 解析失败，请检查生成内容', 'error');
             return;
         }
-
-        // Fallback / Generate Mode Logic
-        const jsonText = elements.aiResponsePreview.value;
-        // Attempt to find JSON if wrapped in markdown
-        let cleanJson = jsonText;
-        const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-            cleanJson = jsonMatch[1];
-        } else {
-             // Try to find the first '{' and last '}'
-             const firstBrace = jsonText.indexOf('{');
-             const lastBrace = jsonText.lastIndexOf('}');
-             if (firstBrace !== -1 && lastBrace !== -1) {
-                 cleanJson = jsonText.substring(firstBrace, lastBrace + 1);
-             }
-        }
-
-        const jsonData = JSON.parse(cleanJson);
-        setFormData(jsonData);
-        showToast('已应用到表单', 'success');
-        elements.aiModal.classList.remove('active');
-    } catch (e) {
-        showToast('JSON 解析失败，请检查生成内容', 'error');
     }
+    applyAiDocument(aiDocument);
+    showToast('已应用到表单', 'success');
+    elements.aiModal.classList.remove('active');
 }

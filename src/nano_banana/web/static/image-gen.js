@@ -14,87 +14,123 @@ async function loadImageProviders() {
     }
 }
 
+const EMPTY_CONFIG = { chat: {}, image: { active: '', providers: {}, options: {} } };
+
 async function loadConfig() {
     try {
         const response = await fetch('/api/config');
         if (!response.ok) throw new Error(response.statusText);
         const config = await response.json();
-        state.config = config;
+        state.config = {
+            chat: config.chat || {},
+            image: { ...EMPTY_CONFIG.image, ...(config.image || {}) }
+        };
         return true;
     } catch (error) {
         console.error('Load config error:', error);
-        state.config = {};
+        state.config = JSON.parse(JSON.stringify(EMPTY_CONFIG));
         return false;
     }
 }
 
-function openConfigModal() {
-    elements.configBaseUrl.value = state.config.base_url || '';
-    elements.configApiKey.value = ''; // Don't show API key
-    elements.configModel.value = state.config.model || '';
+/**
+ * 图片渠道的配置表单完全由 /api/image-providers 生成：
+ * 后端新增一个渠道（ProviderSpec）后，这里不需要改任何代码。
+ */
+function renderImageProviderConfigFields() {
+    const select = elements.configImageProvider;
+    const container = elements.configImageProviderFields;
+    select.replaceChildren();
+    container.replaceChildren();
 
-    const configuredProvider = state.config.image_provider || 'gemini';
-    elements.configImageProvider.value = state.imageProviders[configuredProvider]
-        ? configuredProvider
-        : 'gemini';
-    elements.configGeminiBaseUrl.value = state.config.gemini_base_url || '';
-    elements.configGeminiApiKey.value = '';
-    elements.configGeminiModel.value = state.config.gemini_model || '';
-    elements.configOpenAIImageBaseUrl.value = state.config.openai_image_base_url || '';
-    elements.configOpenAIImageApiKey.value = '';
-    elements.configOpenAIImageModel.value = state.config.openai_image_model || 'gpt-image-2';
-    elements.configQwenImageBaseUrl.value = state.config.qwen_image_base_url || '';
-    elements.configQwenImageApiKey.value = '';
-    elements.configQwenImageModel.value = state.config.qwen_image_model || 'qwen-image-3.0-pro';
-    elements.configDoubaoImageBaseUrl.value = state.config.doubao_image_base_url
-        || 'https://ark.cn-beijing.volces.com/api/v3';
-    elements.configDoubaoImageApiKey.value = '';
-    elements.configDoubaoImageModel.value = state.config.doubao_image_model
-        || 'doubao-seedream-5-0-pro-260628';
+    Object.values(state.imageProviders || {}).forEach(provider => {
+        select.add(new Option(provider.label || provider.id, provider.id));
+
+        const addField = (key, labelText, input) => {
+            const group = document.createElement('div');
+            group.className = 'form-group image-config-group';
+            group.dataset.providerConfig = provider.id;
+            const label = document.createElement('label');
+            label.textContent = `${provider.label} ${labelText}`;
+            input.dataset.providerId = provider.id;
+            input.dataset.configKey = key;
+            input.id = `config-${provider.id}-${key}`;
+            label.htmlFor = input.id;
+            group.append(label, input);
+            container.appendChild(group);
+        };
+
+        const baseUrl = document.createElement('input');
+        baseUrl.type = 'text';
+        baseUrl.className = 'text-input';
+        baseUrl.placeholder = provider.url_placeholder || provider.default_base_url || '';
+        baseUrl.value = provider.base_url || provider.default_base_url || '';
+        addField('base_url', 'Base URL', baseUrl);
+
+        const apiKey = document.createElement('input');
+        apiKey.type = 'password';
+        apiKey.className = 'text-input';
+        apiKey.autocomplete = 'off';
+        apiKey.placeholder = provider.has_api_key ? '已保存，留空则不修改' : '';
+        addField('api_key', 'API Key', apiKey);
+
+        // 模型可自由输入，建议值通过 datalist 给出
+        const model = document.createElement('input');
+        model.type = 'text';
+        model.className = 'text-input';
+        model.placeholder = provider.default_model || '';
+        model.value = provider.model || provider.default_model || '';
+        const suggestions = document.createElement('datalist');
+        suggestions.id = `config-${provider.id}-models`;
+        (provider.models || []).forEach(name => suggestions.appendChild(new Option(name, name)));
+        model.setAttribute('list', suggestions.id);
+        addField('model', 'Model', model);
+        container.appendChild(suggestions);
+    });
+}
+
+function openConfigModal() {
+    const chat = state.config.chat || {};
+    elements.configBaseUrl.value = chat.base_url || '';
+    elements.configApiKey.value = ''; // Don't show API key
+    elements.configApiKey.placeholder = chat.has_api_key ? '已保存，留空则不修改' : '';
+    elements.configModel.value = chat.model || '';
+
+    renderImageProviderConfigFields();
+    const preferred = getActiveImageProvider() || state.config.image.active;
+    if (state.imageProviders[preferred]) {
+        elements.configImageProvider.value = preferred;
+    }
     updateImageConfigVisibility();
 
     elements.configModal.classList.add('active');
 }
 
 async function saveConfigs() {
-    const payload = {
+    const chat = {
         base_url: elements.configBaseUrl.value,
-        model: elements.configModel.value,
-        image_provider: elements.configImageProvider.value,
-        gemini_base_url: elements.configGeminiBaseUrl.value,
-        gemini_model: elements.configGeminiModel.value,
-        openai_image_base_url: elements.configOpenAIImageBaseUrl.value,
-        openai_image_model: elements.configOpenAIImageModel.value,
-        qwen_image_base_url: elements.configQwenImageBaseUrl.value,
-        qwen_image_model: elements.configQwenImageModel.value,
-        doubao_image_base_url: elements.configDoubaoImageBaseUrl.value,
-        doubao_image_model: elements.configDoubaoImageModel.value
+        model: elements.configModel.value
     };
-    if (elements.configApiKey.value) {
-        payload.api_key = elements.configApiKey.value;
-    }
-    if (elements.configGeminiApiKey.value) {
-        payload.gemini_api_key = elements.configGeminiApiKey.value;
-    }
-    if (elements.configOpenAIImageApiKey.value) {
-        payload.openai_image_api_key = elements.configOpenAIImageApiKey.value;
-    }
-    if (elements.configQwenImageApiKey.value) {
-        payload.qwen_image_api_key = elements.configQwenImageApiKey.value;
-    }
-    if (elements.configDoubaoImageApiKey.value) {
-        payload.doubao_image_api_key = elements.configDoubaoImageApiKey.value;
-    }
+    if (elements.configApiKey.value) chat.api_key = elements.configApiKey.value;
 
+    const providers = {};
+    elements.configImageProviderFields.querySelectorAll('[data-config-key]').forEach(input => {
+        const key = input.dataset.configKey;
+        // 密钥留空 = 不修改，避免把已保存的密钥清掉
+        if (key === 'api_key' && !input.value) return;
+        (providers[input.dataset.providerId] ||= {})[key] = input.value;
+    });
+
+    const selectedProvider = elements.configImageProvider.value;
     try {
         const response = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ chat, image: { providers } })
         });
         if (response.ok) {
             await Promise.all([loadConfig(), loadImageProviders()]);
-            await renderImageGenerationControls(elements.configImageProvider.value);
+            await renderImageGenerationControls(selectedProvider);
             showToast('配置保存成功', 'success');
             elements.configModal.classList.remove('active');
         } else {
@@ -143,7 +179,7 @@ async function renderImageGenerationControls(preferredProvider = '') {
     elements.imageProviderSelect.disabled = false;
 
     const availableIds = availableProviders.map(([provider]) => provider);
-    const selectedProvider = [preferredProvider, state.config.image_provider]
+    const selectedProvider = [preferredProvider, state.config.image.active]
         .find(provider => availableIds.includes(provider)) || availableIds[0];
     elements.imageProviderSelect.value = selectedProvider;
     state.activeImageProvider = selectedProvider;
@@ -161,8 +197,7 @@ function renderImageModelChoices(provider, preferredModel = '') {
         return;
     }
 
-    const configuredModel = state.config[providerConfig.model_config_key]
-        || providerConfig.configured_model
+    const configuredModel = providerConfig.configured_model
         || providerConfig.default_model
         || '';
     const models = [...(providerConfig.models || [])];
@@ -178,7 +213,7 @@ function renderImageModelChoices(provider, preferredModel = '') {
 }
 
 function getSavedImageOptions(provider, model) {
-    const allOptions = state.config.image_generation_options || {};
+    const allOptions = state.config.image.options || {};
     const providerOptions = allOptions[provider] || {};
     return providerOptions[model || '__default__'] || {};
 }
@@ -257,14 +292,12 @@ async function saveImageGenerationSettings(includeOptions, quiet) {
             throw new Error(error.error || response.statusText);
         }
 
-        state.config.image_provider = provider;
+        state.config.image.active = provider;
         const providerConfig = state.imageProviders[provider];
-        state.config[providerConfig.model_config_key] = model;
         providerConfig.configured_model = model;
         if (includeOptions) {
-            state.config.image_generation_options ||= {};
-            state.config.image_generation_options[provider] ||= {};
-            state.config.image_generation_options[provider][model] = payload.options;
+            const allOptions = (state.config.image.options ||= {});
+            (allOptions[provider] ||= {})[model] = payload.options;
         }
         return true;
     } catch (error) {
@@ -327,7 +360,7 @@ function updateImageGenerationAvailability() {
 }
 
 function updateImageConfigVisibility() {
-    const provider = elements.configImageProvider.value || 'gemini';
+    const provider = elements.configImageProvider.value;
     document.querySelectorAll('.image-config-group').forEach(group => {
         group.style.display = group.dataset.providerConfig === provider ? '' : 'none';
     });
@@ -474,12 +507,6 @@ async function generateImage() {
     if (sidebar) sidebar.classList.remove('open');
     if (sidebarOverlay) sidebarOverlay.classList.remove('active');
 
-    const prompt = elements.jsonPreviewText.value;
-    if (!prompt || prompt.length < 5) {
-        showToast('请先配置提示词', 'warning');
-        return;
-    }
-
     const provider = getActiveImageProvider();
     const model = getActiveImageModel();
     const providerConfig = state.imageProviders[provider];
@@ -516,8 +543,9 @@ async function generateImage() {
         const response = await fetch('/api/generate-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            // 提交文档本身，最终提示词由服务端渲染（与预览同一份逻辑）
             body: JSON.stringify({
-                prompt: prompt,
+                document: getFormData(),
                 images: state.uploadedImages,
                 provider,
                 model,

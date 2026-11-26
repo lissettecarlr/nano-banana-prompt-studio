@@ -53,6 +53,9 @@
         if (payload.status) {
             return { type: 'status', status: payload.status };
         }
+        if (payload.result && typeof payload.result === 'object') {
+            return { type: 'result', result: payload.result };
+        }
         if (typeof payload.content === 'string' && payload.content) {
             return { type: 'content', content: payload.content };
         }

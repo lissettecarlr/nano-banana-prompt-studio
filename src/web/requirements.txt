@@ -1,3 +1,0 @@
-# 已合并到仓库根目录 pyproject.toml extras [web]。
-# 请在仓库根目录执行：
-#   pip install -e ".[web]"

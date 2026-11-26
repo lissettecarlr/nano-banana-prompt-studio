@@ -1,174 +1,102 @@
+"""整套预设与分类预设。读出的文档一律先升级到当前结构。"""
 from flask import Blueprint, jsonify, request
 
-from nano_banana.core.schema import get_schema
-from nano_banana.web.context import CATEGORY_PRESET_SCOPES, preset_manager, yaml_handler
+from nano_banana.web.context import error, studio
 
 bp = Blueprint("presets", __name__)
 
 
-@bp.get("/api/schema")
-def get_prompt_schema():
-    return jsonify(get_schema().to_public_dict())
+def _listing(presets: list[dict]) -> list[dict]:
+    return [
+        {"name": preset["name"], "modified_time": preset["modified_time"].isoformat()}
+        for preset in presets
+    ]
 
 
-@bp.get("/api/options")
-def get_options():
-    try:
-        return jsonify(yaml_handler.load_options())
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
-
-
-@bp.get("/api/options/<field_name>")
-def get_field_options(field_name):
-    try:
-        return jsonify(yaml_handler.get_field_options(field_name))
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
-
-
-@bp.post("/api/options/<field_name>")
-def add_option(field_name):
-    try:
-        value = (request.json or {}).get("value")
-        if value:
-            yaml_handler.add_option(field_name, value)
-            return jsonify({"success": True})
-        return jsonify({"error": "值不能为空"}), 400
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
-
-
-@bp.delete("/api/options/<field_name>")
-def delete_option(field_name):
-    try:
-        value = (request.get_json(silent=True) or {}).get("value")
-        if value:
-            yaml_handler.remove_option(field_name, value)
-            return jsonify({"success": True})
-        return jsonify({"error": "值不能为空"}), 400
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
-
-
-@bp.get("/api/line-art-prompt")
-def get_line_art_prompt():
-    try:
-        return jsonify({"prompt": yaml_handler.get_line_art_prompt()})
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
-
-
-@bp.post("/api/line-art-prompt")
-def save_line_art_prompt():
-    try:
-        prompt = (request.json or {}).get("prompt")
-        if prompt is not None:
-            yaml_handler.save_line_art_prompt(prompt)
-            return jsonify({"success": True})
-        return jsonify({"error": "提示词不能为空"}), 400
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+def _known_scope(scope: str) -> bool:
+    return scope in studio().schema.category_ids
 
 
 @bp.get("/api/presets")
 def get_presets():
-    try:
-        presets = preset_manager.get_all_presets()
-        for preset in presets:
-            preset["modified_time"] = preset["modified_time"].isoformat()
-        return jsonify(presets)
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+    return jsonify(_listing(studio().presets.list_all()))
 
 
 @bp.get("/api/presets/details")
 def get_all_preset_details():
-    try:
-        details = []
-        for preset in preset_manager.get_all_presets():
-            data = preset_manager.load_preset(preset["name"])
-            if data is not None:
-                details.append(data)
-        return jsonify(details)
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+    app_studio = studio()
+    details = []
+    for preset in app_studio.presets.list_all():
+        data = app_studio.presets.load(preset["name"])
+        if data is not None:
+            details.append(app_studio.migrate(data))
+    return jsonify(details)
 
 
 @bp.get("/api/presets/<name>")
 def get_preset(name):
-    try:
-        preset = preset_manager.load_preset(name)
-        if preset:
-            return jsonify(preset)
-        return jsonify({"error": "预设不存在"}), 404
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+    preset = studio().presets.load(name)
+    if preset is None:
+        return error("预设不存在", 404)
+    return jsonify(studio().migrate(preset))
 
 
 @bp.post("/api/presets")
 def save_preset():
-    try:
-        payload = request.json or {}
-        name = payload.get("name")
-        preset_data = payload.get("data")
-        if not name or not preset_data:
-            return jsonify({"error": "名称和数据不能为空"}), 400
-        if preset_manager.save_preset(name, preset_data):
-            return jsonify({"success": True})
-        return jsonify({"error": "保存失败"}), 500
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+    payload = request.get_json(silent=True) or {}
+    name = payload.get("name")
+    data = payload.get("data")
+    if not name or not isinstance(name, str) or not isinstance(data, dict) or not data:
+        return error("名称和数据不能为空")
+    saved_name = studio().presets.save(name, data)
+    if saved_name is None:
+        return error("保存失败", 500)
+    return jsonify({"success": True, "name": saved_name})
 
 
 @bp.delete("/api/presets/<name>")
 def delete_preset(name):
-    try:
-        if preset_manager.delete_preset(name):
-            return jsonify({"success": True})
-        return jsonify({"error": "删除失败"}), 500
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+    if studio().presets.delete(name):
+        return jsonify({"success": True})
+    return error("预设不存在", 404)
 
 
 @bp.get("/api/category-presets/<scope>")
 def get_category_presets(scope):
-    if scope not in CATEGORY_PRESET_SCOPES:
-        return jsonify({"error": "未知的预设分类"}), 404
-    presets = preset_manager.get_category_presets(scope)
-    for preset in presets:
-        preset["modified_time"] = preset["modified_time"].isoformat()
-    return jsonify(presets)
+    if not _known_scope(scope):
+        return error("未知的预设分类", 404)
+    return jsonify(_listing(studio().presets.list_category(scope)))
 
 
 @bp.get("/api/category-presets/<scope>/<name>")
 def get_category_preset(scope, name):
-    if scope not in CATEGORY_PRESET_SCOPES:
-        return jsonify({"error": "未知的预设分类"}), 404
-    preset = preset_manager.load_category_preset(scope, name)
+    if not _known_scope(scope):
+        return error("未知的预设分类", 404)
+    preset = studio().presets.load_category(scope, name)
     if preset is None:
-        return jsonify({"error": "分类预设不存在"}), 404
-    return jsonify(preset)
+        return error("分类预设不存在", 404)
+    return jsonify(studio().migrate(preset))
 
 
 @bp.post("/api/category-presets/<scope>")
 def save_category_preset(scope):
-    if scope not in CATEGORY_PRESET_SCOPES:
-        return jsonify({"error": "未知的预设分类"}), 404
-    payload = request.json or {}
+    if not _known_scope(scope):
+        return error("未知的预设分类", 404)
+    payload = request.get_json(silent=True) or {}
     name = payload.get("name")
-    preset_data = payload.get("data")
-    if not name or not isinstance(preset_data, dict):
-        return jsonify({"error": "名称和分类数据不能为空"}), 400
-    if preset_manager.save_category_preset(scope, name, preset_data):
-        return jsonify({"success": True})
-    return jsonify({"error": "保存失败"}), 500
+    data = payload.get("data")
+    if not name or not isinstance(name, str) or not isinstance(data, dict):
+        return error("名称和分类数据不能为空")
+    saved_name = studio().presets.save_category(scope, name, data)
+    if saved_name is None:
+        return error("保存失败", 500)
+    return jsonify({"success": True, "name": saved_name})
 
 
 @bp.delete("/api/category-presets/<scope>/<name>")
 def delete_category_preset(scope, name):
-    if scope not in CATEGORY_PRESET_SCOPES:
-        return jsonify({"error": "未知的预设分类"}), 404
-    if preset_manager.delete_category_preset(scope, name):
+    if not _known_scope(scope):
+        return error("未知的预设分类", 404)
+    if studio().presets.delete_category(scope, name):
         return jsonify({"success": True})
-    return jsonify({"error": "删除失败"}), 404
+    return error("删除失败", 404)

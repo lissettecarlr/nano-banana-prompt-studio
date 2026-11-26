@@ -1,4 +1,6 @@
 // Schema-driven prompt document helpers. Requires window.PROMPT_SCHEMA.
+// 这里只做「表单 <-> 文档」的绑定。渲染最终提示词、旧格式兼容、AI 输出解析、
+// 差异计算都在服务端（nano_banana.core.prompt），前端不要再各写一份。
 (function (global) {
     'use strict';
 
@@ -81,11 +83,16 @@
             if (value === undefined) return;
             el.value = decodeField(field, value);
         });
-        const expression = getAtPath(data, ['场景', '主体', '表情与动作']);
-        if (typeof expression === 'string' && elements.action && elements.emotion) {
-            elements.action.value = expression;
-            elements.emotion.value = '';
-        }
+    }
+
+    function deleteAtPath(target, path) {
+        const parent = path.length > 1 ? getAtPath(target, path.slice(0, -1)) : target;
+        if (parent && typeof parent === 'object') delete parent[path[path.length - 1]];
+    }
+
+    function overlayPath(id) {
+        const overlay = (getSchema()?.overlays || []).find(item => item.id === id);
+        return overlay ? overlay.path : null;
     }
 
     function subsetFromData(data, categoryId) {
@@ -114,8 +121,10 @@
         fillElementsFromData,
         subsetFromData,
         overlayDefault,
+        overlayPath,
         getAtPath,
         setAtPath,
+        deleteAtPath,
     };
 
     global.promptSchemaPromise = fetch('/api/schema')

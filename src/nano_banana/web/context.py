@@ -1,11 +1,16 @@
-"""Web 共享管理器。"""
+"""请求内获取 Studio，以及统一的错误响应。"""
+from __future__ import annotations
 
-from nano_banana.core.config import AIConfigManager
-from nano_banana.core.presets import PresetManager
-from nano_banana.core.schema import get_schema
-from nano_banana.core.yaml_handler import YamlHandler
+from flask import current_app, jsonify
 
-yaml_handler = YamlHandler()
-preset_manager = PresetManager()
-config_manager = AIConfigManager()
-CATEGORY_PRESET_SCOPES = set(get_schema().category_ids)
+from nano_banana.core import Studio
+
+STUDIO_EXTENSION = "nano_banana_studio"
+
+
+def studio() -> Studio:
+    return current_app.extensions[STUDIO_EXTENSION]
+
+
+def error(message: str, status: int = 400):
+    return jsonify({"error": message}), status

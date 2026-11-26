@@ -1,57 +1,46 @@
-from flask import Blueprint, Response, jsonify, request
+"""AI 生成 / 修改提示词（SSE）。"""
+import json
 
-from nano_banana.core.chat import (
-    build_generate_messages,
-    build_modify_messages,
-    iter_sse_response,
-)
-from nano_banana.web.context import config_manager
+from flask import Blueprint, request
+
+from nano_banana.core import StudioError
+from nano_banana.web.context import error, studio
+from nano_banana.web.sse import sse_response
 
 bp = Blueprint("chat", __name__)
 
 
-def _sse_from_messages(messages):
-    chat = config_manager.get_chat_config()
-    if not chat["api_key"]:
-        return jsonify({"error": "请先配置API密钥"}), 400
-    response = Response(
-        iter_sse_response(
-            messages,
-            base_url=chat["base_url"],
-            api_key=chat["api_key"],
-            model=chat["model"] or "gpt-4o-mini",
-        ),
-        mimetype="text/event-stream",
-    )
-    response.headers["Cache-Control"] = "no-cache"
-    response.headers["X-Accel-Buffering"] = "no"
-    return response
+def _images(data: dict) -> list[str]:
+    images = data.get("images") or []
+    return [item for item in images if isinstance(item, str)] if isinstance(images, list) else []
 
 
 @bp.post("/api/generate")
 def generate_prompt():
+    data = request.get_json(silent=True) or {}
     try:
-        data = request.json or {}
-        user_prompt = data.get("prompt", "")
-        images = data.get("images", [])
-        if not user_prompt and not images:
-            return jsonify({"error": "请提供文字描述或参考图片"}), 400
-        messages = build_generate_messages(user_prompt, images)
-        return _sse_from_messages(messages)
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+        events = studio().generate_prompt(data.get("prompt") or "", _images(data))
+    except StudioError as exc:
+        return error(str(exc))
+    return sse_response(events)
 
 
 @bp.post("/api/modify")
 def modify_prompt():
+    data = request.get_json(silent=True) or {}
+    document = data.get("document")
+    if document is None and isinstance(data.get("current_data"), str):
+        # 兼容旧请求体：current_data 是 JSON 字符串
+        try:
+            document = json.loads(data["current_data"])
+        except json.JSONDecodeError:
+            return error("current_data 不是有效的 JSON")
+    if not isinstance(document, dict):
+        return error("当前数据和修改要求不能为空")
     try:
-        data = request.json or {}
-        current_data = data.get("current_data", "")
-        modify_request = data.get("modify_request", "")
-        images = data.get("images", [])
-        if not current_data or not modify_request:
-            return jsonify({"error": "当前数据和修改要求不能为空"}), 400
-        messages = build_modify_messages(current_data, modify_request, images)
-        return _sse_from_messages(messages)
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": str(exc)}), 500
+        events = studio().modify_prompt(
+            document, data.get("modify_request") or "", _images(data)
+        )
+    except StudioError as exc:
+        return error(str(exc))
+    return sse_response(events)
