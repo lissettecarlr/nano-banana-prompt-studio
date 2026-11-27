@@ -1,22 +1,82 @@
 name: 🚀 Release
 
+# 发版唯一入口：在 master 的提交上打 vX.Y.Z（或 vX.Y.Z-rc.1）并推送 tag。
+# 推 master / test 本身不编译客户端，测试由 test.yml 负责。
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g. v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
+  guard:
+    name: 🔎 tag 必须在 master 上
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🚦 校验版本号，并确认提交已经在 master
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "tag 必须是 vX.Y.Z 或 vX.Y.Z-rc.1，当前是 ${tag}"
+            exit 1
+          fi
+          git fetch origin master
+          if ! git merge-base --is-ancestor HEAD origin/master; then
+            echo "这个 tag 的提交不在 master 上。先把要发版的提交推到 master，再在那个提交上打 tag。"
+            exit 1
+          fi
+
+  test:
+    name: 🧪 发版前测试
+    needs: guard
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: 🟢 Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 🐧 Install Qt runtime deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon0 libdbus-1-3 libxcb-cursor0 libfontconfig1
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[desktop,web,dev]"
+
+      - name: 🧹 Ruff
+        run: ruff check src tests
+
+      - name: 🧱 Architecture contracts
+        run: lint-imports
+
+      - name: 🧪 Pytest
+        run: pytest -q
+
   build-matrix:
     name: 🔨 Build ${{ matrix.os }}
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -31,8 +91,7 @@ jobs:
 
     env:
       PYTHONIOENCODING: utf-8
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
-      ASSET_NAME: nano-banana-prompt-studio-${{ matrix.platform }}-${{ github.event.inputs.version || github.ref_name }}.zip
+      ASSET_NAME: nano-banana-prompt-studio-${{ matrix.platform }}-${{ github.ref_name }}.zip
 
     steps:
       - name: 📥 Checkout
@@ -42,7 +101,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-          cache: 'pip'
+          cache: pip
 
       - name: 🐧 Install Linux Deps
         if: runner.os == 'Linux'
@@ -60,8 +119,7 @@ jobs:
 
       - name: 📦 Pack Artifacts (Windows)
         if: runner.os == 'Windows'
-        run: |
-          Compress-Archive -Path output/* -DestinationPath ${{ env.ASSET_NAME }}
+        run: Compress-Archive -Path output/* -DestinationPath ${{ env.ASSET_NAME }}
 
       - name: 📦 Pack Artifacts (Unix)
         if: runner.os != 'Windows'
@@ -101,36 +159,31 @@ jobs:
           sha256sum *.zip > checksums.txt
 
       - name: 📝 Generate Release Notes
-        id: release_notes
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          
-          # 获取上一个 tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || git tag --sort=-creatordate | sed -n '2p' || echo "")
-          
-          # 创建 release notes 文件
+          VERSION="${GITHUB_REF_NAME}"
+          git fetch origin master --tags
+          PREV_TAG=$(git describe --tags --abbrev=0 "${VERSION}^" 2>/dev/null || true)
           {
-            echo "## 🎉 Release $VERSION"
+            echo "## ${VERSION}"
             echo ""
             if [ -z "$PREV_TAG" ]; then
-              echo "### 📝 Changes"
+              echo "### Changes"
               echo ""
               git log --pretty=format:"- %s (%h)" --no-merges
             else
-              echo "### 📝 Changes since $PREV_TAG"
+              echo "### Changes since ${PREV_TAG}"
               echo ""
-              git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges
+              git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges
             fi
           } > release_notes.md
 
       - name: 🚀 Publish to GitHub Release
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-          name: Release ${{ github.event.inputs.version || github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body_path: release_notes.md
           files: releases/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
