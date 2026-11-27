@@ -602,11 +602,11 @@ function init() {
         }
     });
 
-    // Copy JSON
+    // 复制最终提示词（JSON 或线稿文本，与预览一致）
     elements.copyJsonBtn.addEventListener('click', () => {
         if (!elements.jsonPreviewText.value) return;
         navigator.clipboard.writeText(elements.jsonPreviewText.value).then(() => {
-            showToast('已复制 JSON');
+            showToast('已复制提示词');
         });
     });
 

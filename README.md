@@ -25,7 +25,7 @@
 - **AI 智能生成** - 一句话描述生成完整结构化提示词
 - **AI 修改** - 一句话描述对已有提示词进行修改
 - **预设管理** - 保存/加载/删除常用提示词配置
-- **一键复制** - 快速复制 JSON 到剪贴板
+- **一键复制** - 复制最终发给模型的提示词（JSON 或线稿文本，与预览一致）
 - **图片生成** - 支持 Gemini、OpenAI Images（gpt-image-2）、千问和豆包 Seedream 的多渠道生成图片，各渠道独立参数配置。
 
 ## 2 界面预览
@@ -61,10 +61,7 @@ pip install -e ".[web]"
 python -m nano_banana.web        # 或 nano-banana-web，默认 http://localhost:5000
 python -m nano_banana.web --open # 启动后自动打开浏览器
 
-# docker：拉现成镜像
-docker run --rm --name nano-banana-web -p 5000:5000 lissettecarlr/nano-banana-web:v0.4.1
-
-# 或在项目根目录本地编译（配置和预设保存在 /data，挂卷即可持久化）
+# Hub 上的 v0.4.1 是重构前的镜像，不包含当前代码。测这次重构请在项目根目录本地构建：
 docker build -f web_dockerfile -t nano-banana-web .
 docker run --rm --name nano-banana-web -p 5000:5000 -v nano-banana-data:/data nano-banana-web
 ```
@@ -91,7 +88,7 @@ Web 端的运行参数全部走环境变量：
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/nano-banana-prompt-studio.git
+git clone https://github.com/lissettecarlr/nano-banana-prompt-studio.git
 cd nano-banana-prompt-studio
 
 # 安装
@@ -214,10 +211,10 @@ python scripts/format_presets.py [--check]   # 按 schema 统一内置预设的�
 ----
 
 * 庭院睡觉中秋星野（gemini-3.1-flash-image）
-![](./images//庭院睡觉星野.png)
+![](./images/庭院睡觉星野.png)
 
 * 庭院睡觉中秋星野（gpt-image-2）
-![](./images//庭院睡觉中秋星野gpt.png)
+![](./images/庭院睡觉中秋星野gpt.png)
 
 ----
 
