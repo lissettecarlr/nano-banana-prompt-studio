@@ -51,7 +51,7 @@
 
 ### 3.1 下载客户端使用
 
-在[Releases](https://github.com/lissettecarlr/nano-banana-prompt-studio/releases)页面下载最新客户端，目前只编译了`windows`版本，解压后双击运行。
+在[Releases](https://github.com/lissettecarlr/nano-banana-prompt-studio/releases)页面下载最新客户端。正式发版会附上 Windows、Linux、macOS 三个包，解压后运行。
 
 
 ### 3.2 web运行
@@ -194,7 +194,7 @@ lint-imports              # 架构契约
 python scripts/format_presets.py [--check]   # 按 schema 统一内置预设的字段顺序
 ```
 
-分支约定：`master`（发布）← `test`（验证）← `develop`（集成），功能分支从 `develop` 切出。
+分支和发版的操作步骤见 [docs/开发流程.md](docs/开发流程.md)。功能分支从 `develop` 切出，经 `test` 验证后再合回 `develop`；发版时把 `develop` 合进 `master` 并打 `vX.Y.Z` tag，由 tag 触发客户端编译和 GitHub Release。
 
 ## 6 效果
 
